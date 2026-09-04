@@ -746,7 +746,7 @@ export default function AdminSettingsPage() {
                                     dataSource={channelTableData}
                                     columns={[
                                         { title: "名称", dataIndex: "name", render: (value) => value || "未命名渠道" },
-                                        { title: "协议", dataIndex: "protocol", width: 96, render: (value) => <Tag>{value || "openai"}</Tag> },
+                                        { title: "协议", dataIndex: "protocol", width: 96, render: (value) => <Tag>{value === "doingai" ? "doingAI" : value || "openai"}</Tag> },
                                         { title: "状态", dataIndex: "enabled", width: 96, render: (value) => <Tag color={value ? "success" : "default"}>{value ? "已启用" : "已停用"}</Tag> },
                                         {
                                             title: "模型",
@@ -831,11 +831,7 @@ export default function AdminSettingsPage() {
                                             { label: "OpenAI", value: "openai" },
                                             { label: "Gemini", value: "gemini" },
                                             { label: "Grok2API", value: "grok2api" },
-                                            { label: "MiniMax & METASO", value: "metaso" },
-                                            { label: "APIMart", value: "apimart" },
-                                            { label: "88API", value: "88api" },
-                                            { label: "KIE", value: "kie" },
-                                            { label: "MiMo", value: "mimo" },
+                                            { label: "doingAI", value: "doingai" },
                                         ]}
                                         onChange={(protocol: AdminModelChannel["protocol"]) => {
                                             channelForm.setFieldValue("baseUrl", modelChannelDefaultBaseUrls[protocol]);

@@ -5,6 +5,7 @@
 + [新增] 登录注册页支持邮箱验证、密码找回、Google 和 DoingFB 登录入口
 + [调整] 登录注册页移除 Linux.do 登录入口
 + [调整] Docker 部署支持通过环境变量配置宿主机端口和容器名称
++ [调整] 内置模型渠道移除旧中转站选项并新增 doingAI
 
 + [新增] 首页 Agent 输入框支持选择 Skill，并在进入画布后继续执行所选 Skill
 + [新增] Agent 支持手动开启文本模型推理参数，并在 Agent 设置中切换 Chat / Responses 接口

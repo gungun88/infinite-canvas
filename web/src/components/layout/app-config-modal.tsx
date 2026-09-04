@@ -337,11 +337,7 @@ export function AppConfigModal() {
                                                     { label: "OpenAI", value: "openai" },
                                                     { label: "Gemini", value: "gemini" },
                                                     { label: "Grok2API", value: "grok2api" },
-                                                    { label: "MiniMax & METASO", value: "metaso" },
-                                                    { label: "APIMart", value: "apimart" },
-                                                    { label: "88API", value: "88api" },
-                                                    { label: "KIE", value: "kie" },
-                                                    { label: "MiMo", value: "mimo" },
+                                                    { label: "doingAI", value: "doingai" },
                                                 ]}
                                                 onChange={(protocol: LocalModelChannel["protocol"]) => patchLocalChannel(channel.id, { protocol, baseUrl: modelChannelDefaultBaseUrls[protocol] })}
                                             />
