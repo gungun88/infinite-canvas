@@ -37,6 +37,10 @@ function safeRedirect(value: string | null): string {
     return cleaned;
 }
 
+function cleanLoginURL(redirect: string) {
+    window.history.replaceState(null, "", `/login${redirect === "/" ? "" : `?redirect=${encodeURIComponent(redirect)}`}`);
+}
+
 export default function LoginPage() {
     return (
         <Suspense fallback={null}>
@@ -75,6 +79,7 @@ function LoginContent() {
         if (error) message.error(formatAuthError(error));
         if (!token || handledToken.current === token) return;
         handledToken.current = token;
+        cleanLoginURL(redirect);
         void fetchCurrentUser(token)
             .then((user) => {
                 setSession(token, user);

@@ -5,6 +5,7 @@ import { Avatar, Dropdown, Tooltip } from "antd";
 import { Keyboard, LogOut, Settings2, Shield } from "lucide-react";
 import type { ItemType } from "antd/es/menu/interface";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
 import { CreditSymbol } from "@/constant/credits";
@@ -24,6 +25,7 @@ type UserStatusActionsProps = {
 };
 
 export function UserStatusActions({ showConfig = true, variant = "default", onOpenShortcuts, accountOpen, onAccountOpenChange, accountRef, getPopupContainer }: UserStatusActionsProps) {
+    const router = useRouter();
     const theme = useThemeStore((state) => state.theme);
     const setTheme = useThemeStore((state) => state.setTheme);
     const user = useUserStore((state) => state.user);
@@ -37,12 +39,17 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
     const naturalIconClass = "inline-flex size-7 shrink-0 items-center justify-center text-stone-600 transition hover:text-stone-950 dark:text-stone-300 dark:hover:text-white [&_svg]:size-4";
     const iconStyle: CSSProperties | undefined = variant === "canvas" ? { color: canvasTheme.node.text } : undefined;
     const avatarStyle: CSSProperties | undefined = variant === "canvas" ? { borderColor: canvasTheme.toolbar.border, color: canvasTheme.node.text, background: "transparent" } : undefined;
+    const handleLogout = () => {
+        logout();
+        router.replace("/login");
+        router.refresh();
+    };
     const menuItems: ItemType[] = [
         { key: "user", disabled: true, label: <span className="font-medium text-current">{userName}</span> },
         ...(user?.role === "admin" ? [{ key: "admin", icon: <Shield className="size-4" />, label: <Link href="/admin">管理后台</Link> }] : []),
         ...(onOpenShortcuts ? [{ key: "shortcuts", icon: <Keyboard className="size-4" />, label: "快捷键", onClick: onOpenShortcuts }] : []),
         { type: "divider" },
-        { key: "logout", icon: <LogOut className="size-4" />, label: "退出登录", onClick: logout },
+        { key: "logout", icon: <LogOut className="size-4" />, label: "退出登录", onClick: handleLogout },
     ];
 
     return (

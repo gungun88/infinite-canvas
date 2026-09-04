@@ -11,4 +11,5 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 模型渠道下拉框应移除 MiniMax & METASO、APIMart、88API、KIE、MiMo，并显示 `doingAI`；选择 `doingAI` 后接口地址应为 `https://ai.doingfb.com/v1`，点击“获取 API Key”应打开 `https://ai.doingfb.com/keys`。
 - 配置 `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`GOOGLE_REDIRECT_URI` 后，Google OAuth 应能完成授权回调并登录。
 - 配置 `DOINGFB_CLIENT_ID`、`DOINGFB_CLIENT_SECRET`、`DOINGFB_REDIRECT_URI` 后，DoingFB OAuth 应能完成授权回调并登录。
+- Google / DoingFB OAuth 登录后退出账号，再点击登录应回到干净登录页并重新发起授权，不应直接复用上一次回调 token 自动登录。
 - 配置 `SMTP_HOST`、`SMTP_FROM` 等邮件变量后，注册验证邮件、重发验证邮件和密码重置邮件应能正常发送；未配置 SMTP 时，原用户名注册仍可直接登录。

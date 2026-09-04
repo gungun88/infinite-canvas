@@ -25,6 +25,7 @@ type oauthConfig struct {
 	userInfoURL  string
 	scope        string
 	redirectURI  string
+	prompt       string
 }
 
 type oauthState struct {
@@ -38,6 +39,7 @@ func GoogleAuthorizeURL(r *http.Request, redirect string) (string, *http.Cookie,
 		authorizeURL: config.Cfg.GoogleAuthorizeURL, tokenURL: config.Cfg.GoogleTokenURL,
 		userInfoURL: config.Cfg.GoogleUserInfoURL, scope: config.Cfg.GoogleScope,
 		redirectURI: config.Cfg.GoogleRedirectURI,
+		prompt:      "select_account",
 	})
 }
 
@@ -47,6 +49,7 @@ func DoingFBAuthorizeURL(r *http.Request, redirect string) (string, *http.Cookie
 		authorizeURL: config.Cfg.DoingFBAuthorizeURL, tokenURL: config.Cfg.DoingFBTokenURL,
 		userInfoURL: config.Cfg.DoingFBUserInfoURL, scope: config.Cfg.DoingFBScope,
 		redirectURI: config.Cfg.DoingFBRedirectURI,
+		prompt:      "login",
 	})
 }
 
@@ -79,6 +82,9 @@ func oauthAuthorizeURL(r *http.Request, provider string, redirect string, settin
 	values.Set("response_type", "code")
 	values.Set("scope", firstNonEmpty(setting.scope, "openid email profile"))
 	values.Set("state", encodedState)
+	if strings.TrimSpace(setting.prompt) != "" {
+		values.Set("prompt", strings.TrimSpace(setting.prompt))
+	}
 	return setting.authorizeURL + "?" + values.Encode(), OAuthStateCookie(r, provider, encodedState, 600), nil
 }
 

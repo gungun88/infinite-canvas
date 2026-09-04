@@ -57,6 +57,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         }
     }, [isReady, router, token, user?.role]);
 
+    const handleLogout = () => {
+        logout();
+        router.replace("/login?redirect=/admin");
+        router.refresh();
+    };
+
     if (!isReady || !token || user?.role !== "admin") {
         return (
             <div style={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", background: antToken.colorBgLayout }}>
@@ -92,7 +98,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                     <Button block icon={<HomeOutlined />} href="/canvas" target="_blank" rel="noreferrer">
                         前往画布
                     </Button>
-                    <Button block icon={<LogoutOutlined />} onClick={logout}>
+                    <Button block icon={<LogoutOutlined />} onClick={handleLogout}>
                         退出登录
                     </Button>
                 </Flex>
