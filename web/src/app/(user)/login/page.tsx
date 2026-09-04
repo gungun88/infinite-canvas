@@ -80,14 +80,23 @@ function LoginContent() {
         if (!token || handledToken.current === token) return;
         handledToken.current = token;
         cleanLoginURL(redirect);
+        const sessionRevision = useUserStore.getState().sessionRevision;
+        let cancelled = false;
         void fetchCurrentUser(token)
             .then((user) => {
+                const current = useUserStore.getState();
+                if (cancelled || current.sessionRevision !== sessionRevision || (current.token && current.token !== token)) return;
                 setSession(token, user);
                 message.success("登录成功");
                 router.replace(redirect);
                 router.refresh();
             })
-            .catch(() => message.error("登录状态已失效，请重新登录"));
+            .catch(() => {
+                if (!cancelled) message.error("登录状态已失效，请重新登录");
+            });
+        return () => {
+            cancelled = true;
+        };
     }, [message, redirect, router, searchParams, setSession]);
 
     useEffect(() => {

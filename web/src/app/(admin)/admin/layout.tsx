@@ -59,8 +59,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
     const handleLogout = () => {
         logout();
-        router.replace("/login?redirect=/admin");
-        router.refresh();
+        window.location.replace("/login?redirect=/admin");
     };
 
     if (!isReady || !token || user?.role !== "admin") {

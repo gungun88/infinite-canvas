@@ -5,7 +5,6 @@ import { Avatar, Dropdown, Tooltip } from "antd";
 import { Keyboard, LogOut, Settings2, Shield } from "lucide-react";
 import type { ItemType } from "antd/es/menu/interface";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
 import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
 import { CreditSymbol } from "@/constant/credits";
@@ -25,7 +24,6 @@ type UserStatusActionsProps = {
 };
 
 export function UserStatusActions({ showConfig = true, variant = "default", onOpenShortcuts, accountOpen, onAccountOpenChange, accountRef, getPopupContainer }: UserStatusActionsProps) {
-    const router = useRouter();
     const theme = useThemeStore((state) => state.theme);
     const setTheme = useThemeStore((state) => state.setTheme);
     const user = useUserStore((state) => state.user);
@@ -41,8 +39,7 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
     const avatarStyle: CSSProperties | undefined = variant === "canvas" ? { borderColor: canvasTheme.toolbar.border, color: canvasTheme.node.text, background: "transparent" } : undefined;
     const handleLogout = () => {
         logout();
-        router.replace("/login");
-        router.refresh();
+        window.location.replace("/login");
     };
     const menuItems: ItemType[] = [
         { key: "user", disabled: true, label: <span className="font-medium text-current">{userName}</span> },

@@ -8,6 +8,7 @@ import { AUTH_TOKEN_KEY, fetchCurrentUser, login, register, type AuthPayload, ty
 type UserStore = {
     token: string;
     user: AuthUser | null;
+    sessionRevision: number;
     isReady: boolean;
     isLoading: boolean;
     setSession: (token: string, user: AuthUser) => void;
@@ -22,15 +23,17 @@ export const useUserStore = create<UserStore>()(
         (set, get) => ({
             token: "",
             user: null,
+            sessionRevision: 0,
             isReady: false,
             isLoading: false,
             setSession: (token, user) => set({ token, user, isReady: true }),
             clearSession: () => {
                 if (typeof window !== "undefined") window.localStorage.removeItem(AUTH_TOKEN_KEY);
-                set({ token: "", user: null, isReady: true, isLoading: false });
+                set((state) => ({ token: "", user: null, sessionRevision: state.sessionRevision + 1, isReady: true, isLoading: false }));
             },
             hydrateUser: async () => {
                 const token = get().token;
+                const sessionRevision = get().sessionRevision;
                 if (!token) {
                     set({ user: null, isReady: true });
                     return;
@@ -38,12 +41,16 @@ export const useUserStore = create<UserStore>()(
                 set({ isLoading: true });
                 try {
                     const user = await fetchCurrentUser(token);
+                    const current = get();
+                    if (current.sessionRevision !== sessionRevision || current.token !== token) return;
                     if (user.role === "guest") {
                         set({ token: "", user: null, isReady: true, isLoading: false });
                         return;
                     }
                     set({ user, isReady: true, isLoading: false });
                 } catch {
+                    const current = get();
+                    if (current.sessionRevision !== sessionRevision || current.token !== token) return;
                     set({ token: "", user: null, isReady: true, isLoading: false });
                 }
             },
