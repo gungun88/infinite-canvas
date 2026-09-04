@@ -22,9 +22,10 @@ export function assistantReferenceContentFromNode(node: CanvasNodeData): Partial
         const text = content || node.metadata?.prompt;
         return text ? { text } : null;
     }
-    if (!content) return null;
-    if (isCanvasImageNodeType(node.type)) return { dataUrl: content, url: undefined, storageKey: node.metadata.storageKey, mimeType: node.metadata.mimeType };
-    if (node.type === CanvasNodeType.Video || node.type === CanvasNodeType.Audio) return { dataUrl: undefined, url: content, storageKey: node.metadata.storageKey, mimeType: node.metadata.mimeType };
+    const metadata = node.metadata;
+    if (!content || !metadata) return null;
+    if (isCanvasImageNodeType(node.type)) return { dataUrl: content, url: undefined, storageKey: metadata.storageKey, mimeType: metadata.mimeType };
+    if (node.type === CanvasNodeType.Video || node.type === CanvasNodeType.Audio) return { dataUrl: undefined, url: content, storageKey: metadata.storageKey, mimeType: metadata.mimeType };
     return null;
 }
 

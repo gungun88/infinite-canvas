@@ -410,7 +410,11 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     const [canvasNow, setCanvasNow] = useState(Date.now());
     const resolvedAgentConfig = useMemo<CanvasAgentConfig>(
         () =>
-            agentConfig ? { textApiMode: "chat", autoGenerateMedia: false, ...agentConfig } : {
+            agentConfig ? {
+                ...agentConfig,
+                textApiMode: agentConfig.textApiMode || "chat",
+                autoGenerateMedia: agentConfig.autoGenerateMedia ?? false,
+            } : {
                 textApiMode: "chat",
                 autoGenerateMedia: false,
                 imageQuality: effectiveConfig.quality,

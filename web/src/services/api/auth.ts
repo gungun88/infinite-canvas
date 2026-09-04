@@ -18,11 +18,14 @@ export type AuthUser = {
 export type AuthSession = {
     token: string;
     user: AuthUser;
+    emailVerificationRequired?: boolean;
+    verificationEmailSent?: boolean;
 };
 
 export type AuthPayload = {
     username: string;
     password: string;
+    email?: string;
 };
 
 export async function login(payload: AuthPayload) {
@@ -35,4 +38,20 @@ export async function register(payload: AuthPayload) {
 
 export async function fetchCurrentUser(token?: string) {
     return apiGet<AuthUser>("/api/auth/me", undefined, token);
+}
+
+export async function resendVerificationEmail(email: string) {
+    return apiPost<{ emailVerificationRequired: boolean; verificationEmailSent: boolean }>("/api/auth/verification/resend", { email });
+}
+
+export async function requestPasswordReset(email: string) {
+    return apiPost<boolean>("/api/auth/forgot-password", { email });
+}
+
+export async function verifyEmail(token: string) {
+    return apiPost<boolean>("/api/auth/verify-email", { token });
+}
+
+export async function resetPassword(token: string, password: string) {
+    return apiPost<AuthSession>("/api/auth/reset-password", { token, password });
 }

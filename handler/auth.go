@@ -8,6 +8,7 @@ import (
 
 	"github.com/tigerowo/infinite-canvas/model"
 	"github.com/tigerowo/infinite-canvas/service"
+	"github.com/tigerowo/infinite-canvas/config"
 )
 
 type loginRequest struct {
@@ -18,7 +19,22 @@ type loginRequest struct {
 type registerRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+	Email    string `json:"email"`
 }
+
+type emailRequest struct {
+	Email string `json:"email"`
+}
+
+type tokenRequest struct {
+	Token string `json:"token"`
+}
+
+type resetRequest struct {
+	Token    string `json:"token"`
+	Password string `json:"password"`
+}
+
 
 type saveUserRequest struct {
 	ID          string           `json:"id"`
@@ -37,7 +53,7 @@ type adjustUserCreditsRequest struct {
 func Register(w http.ResponseWriter, r *http.Request) {
 	var request registerRequest
 	_ = json.NewDecoder(r.Body).Decode(&request)
-	session, err := service.Register(request.Username, request.Password)
+	session, err := service.Register(request.Username, request.Password, request.Email)
 	if err != nil {
 		FailError(w, err)
 		return
@@ -56,6 +72,48 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	OK(w, session)
 }
 
+func ResendVerificationEmail(w http.ResponseWriter, r *http.Request) {
+	var request emailRequest
+	_ = json.NewDecoder(r.Body).Decode(&request)
+	result, err := service.ResendVerificationEmail(request.Email)
+	if err != nil {
+		FailError(w, err)
+		return
+	}
+	OK(w, result)
+}
+
+func ForgotPassword(w http.ResponseWriter, r *http.Request) {
+	var request emailRequest
+	_ = json.NewDecoder(r.Body).Decode(&request)
+	if err := service.RequestPasswordReset(request.Email); err != nil {
+		FailError(w, err)
+		return
+	}
+	OK(w, true)
+}
+
+func VerifyEmail(w http.ResponseWriter, r *http.Request) {
+	var request tokenRequest
+	_ = json.NewDecoder(r.Body).Decode(&request)
+	if err := service.VerifyEmailToken(request.Token); err != nil {
+		FailError(w, err)
+		return
+	}
+	OK(w, true)
+}
+
+func ResetPassword(w http.ResponseWriter, r *http.Request) {
+	var request resetRequest
+	_ = json.NewDecoder(r.Body).Decode(&request)
+	session, err := service.ResetPassword(request.Token, request.Password)
+	if err != nil {
+		FailError(w, err)
+		return
+	}
+	OK(w, session)
+}
+
 func LinuxDoAuthorize(w http.ResponseWriter, r *http.Request) {
 	authURL, err := service.LinuxDoAuthorizeURL(r, r.URL.Query().Get("redirect"))
 	if err != nil {
@@ -67,6 +125,46 @@ func LinuxDoAuthorize(w http.ResponseWriter, r *http.Request) {
 
 func LinuxDoCallback(w http.ResponseWriter, r *http.Request) {
 	session, redirect, err := service.LoginWithLinuxDo(r, r.URL.Query().Get("code"), r.URL.Query().Get("state"))
+	if err != nil {
+		http.Redirect(w, r, loginRedirect(r, redirect, "", err.Error()), http.StatusFound)
+		return
+	}
+	http.Redirect(w, r, loginRedirect(r, redirect, session.Token, ""), http.StatusFound)
+}
+
+func GoogleAuthorize(w http.ResponseWriter, r *http.Request) {
+	authURL, cookie, err := service.GoogleAuthorizeURL(r, r.URL.Query().Get("redirect"))
+	if err != nil {
+		FailError(w, err)
+		return
+	}
+	http.SetCookie(w, cookie)
+	http.Redirect(w, r, authURL, http.StatusFound)
+}
+
+func GoogleCallback(w http.ResponseWriter, r *http.Request) {
+	session, redirect, err := service.LoginWithGoogle(r, r.URL.Query().Get("code"), r.URL.Query().Get("state"))
+	http.SetCookie(w, service.OAuthStateCookie(r, "google", "", -1))
+	if err != nil {
+		http.Redirect(w, r, loginRedirect(r, redirect, "", err.Error()), http.StatusFound)
+		return
+	}
+	http.Redirect(w, r, loginRedirect(r, redirect, session.Token, ""), http.StatusFound)
+}
+
+func DoingFBAuthorize(w http.ResponseWriter, r *http.Request) {
+	authURL, cookie, err := service.DoingFBAuthorizeURL(r, r.URL.Query().Get("redirect"))
+	if err != nil {
+		FailError(w, err)
+		return
+	}
+	http.SetCookie(w, cookie)
+	http.Redirect(w, r, authURL, http.StatusFound)
+}
+
+func DoingFBCallback(w http.ResponseWriter, r *http.Request) {
+	session, redirect, err := service.LoginWithDoingFB(r, r.URL.Query().Get("code"), r.URL.Query().Get("state"))
+	http.SetCookie(w, service.OAuthStateCookie(r, "doingfb", "", -1))
 	if err != nil {
 		http.Redirect(w, r, loginRedirect(r, redirect, "", err.Error()), http.StatusFound)
 		return
@@ -174,7 +272,11 @@ func loginRedirect(r *http.Request, redirect string, token string, message strin
 	if strings.TrimSpace(redirect) != "" {
 		values.Set("redirect", redirect)
 	}
-	return service.RequestOrigin(r) + "/login?" + values.Encode()
+	base := strings.TrimRight(strings.TrimSpace(config.Cfg.PublicBaseURL), "/")
+	if base == "" {
+		base = service.RequestOrigin(r)
+	}
+	return base + "/login?" + values.Encode()
 }
 
 func AdminDeleteUser(w http.ResponseWriter, r *http.Request, id string) {

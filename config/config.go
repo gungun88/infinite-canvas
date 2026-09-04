@@ -23,6 +23,27 @@ type Config struct {
 	LinuxDoAuthorizeURL string `env:"LINUX_DO_AUTHORIZE_URL" envDefault:"https://connect.linux.do/oauth2/authorize"`
 	LinuxDoTokenURL     string `env:"LINUX_DO_TOKEN_URL" envDefault:"https://connect.linux.do/oauth2/token"`
 	LinuxDoUserInfoURL  string `env:"LINUX_DO_USERINFO_URL" envDefault:"https://connect.linux.do/api/user"`
+	DoingFBClientID     string `env:"DOINGFB_CLIENT_ID"`
+	DoingFBClientSecret string `env:"DOINGFB_CLIENT_SECRET"`
+	DoingFBAuthorizeURL string `env:"DOINGFB_AUTHORIZATION_URL" envDefault:"https://doingfb.com/oauth2/authorize"`
+	DoingFBTokenURL     string `env:"DOINGFB_TOKEN_URL" envDefault:"https://doingfb.com/oauth2/token"`
+	DoingFBUserInfoURL  string `env:"DOINGFB_USERINFO_URL" envDefault:"https://doingfb.com/api/oauth/user"`
+	DoingFBScope        string `env:"DOINGFB_SCOPE" envDefault:"user.read user.email"`
+	DoingFBRedirectURI  string `env:"DOINGFB_REDIRECT_URI"`
+	GoogleClientID      string `env:"GOOGLE_CLIENT_ID"`
+	GoogleClientSecret  string `env:"GOOGLE_CLIENT_SECRET"`
+	GoogleAuthorizeURL  string `env:"GOOGLE_AUTHORIZATION_URL" envDefault:"https://accounts.google.com/o/oauth2/v2/auth"`
+	GoogleTokenURL      string `env:"GOOGLE_TOKEN_URL" envDefault:"https://oauth2.googleapis.com/token"`
+	GoogleUserInfoURL   string `env:"GOOGLE_USERINFO_URL" envDefault:"https://openidconnect.googleapis.com/v1/userinfo"`
+	GoogleScope         string `env:"GOOGLE_SCOPE" envDefault:"openid email profile"`
+	GoogleRedirectURI   string `env:"GOOGLE_REDIRECT_URI"`
+	SMTPHost            string `env:"SMTP_HOST"`
+	SMTPPort            int    `env:"SMTP_PORT" envDefault:"587"`
+	SMTPSecure          bool   `env:"SMTP_SECURE"`
+	SMTPUser            string `env:"SMTP_USER"`
+	SMTPPass            string `env:"SMTP_PASS"`
+	SMTPFrom            string `env:"SMTP_FROM"`
+	SMTPReplyTo         string `env:"SMTP_REPLY_TO"`
 	AILogDir            string `env:"AI_LOG_DIR" envDefault:"data/logs/ai-calls"`
 }
 

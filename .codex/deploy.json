@@ -1,0 +1,42 @@
+{
+  "project": "infinite-canvas-custom",
+  "repo": "https://github.com/gungun88/infinite-canvas.git",
+  "branch": "custom/auth-methods",
+  "sshHost": "scrapify-vps",
+  "remotePath": "/opt/infinite-canvas-custom",
+  "localVerify": [
+    "go test ./...",
+    "cd web && bunx tsc --noEmit",
+    "cd web && bun run build"
+  ],
+  "deploy": [
+    "sudo git fetch --prune origin",
+    "sudo git checkout custom/auth-methods",
+    "sudo git pull --ff-only origin custom/auth-methods",
+    "sudo docker compose --env-file .env config --quiet",
+    "sudo docker compose --env-file .env up -d --build",
+    "sudo docker compose --env-file .env ps"
+  ],
+  "healthCheck": "https://test-canvas.doingfb.com/api/health",
+  "postDeployVerify": [
+    "sudo git log -1 --oneline",
+    "sudo git status --short",
+    "sudo docker compose --env-file .env ps",
+    "curl -fsS http://127.0.0.1:18902/api/health",
+    "curl -fsS https://test-canvas.doingfb.com/api/health"
+  ],
+  "protectedUntracked": [
+    ".env",
+    "data/**",
+    "*.sql",
+    "*.sql.gz",
+    "backup-*",
+    "backups/**"
+  ],
+  "notes": [
+    "This project is deployed separately from the existing /opt/infinite-canvas project.",
+    "The server .env must set APP_BIND_ADDRESS=127.0.0.1, APP_PORT=18902, CONTAINER_NAME=infinite-canvas-custom, PUBLIC_BASE_URL=https://test-canvas.doingfb.com, and DATABASE_DSN=/app/data/infinite-canvas.db.",
+    "Do not copy the old project's .env or data directory.",
+    "The old project on 18900/18901 must remain running until the test domain is verified."
+  ]
+}

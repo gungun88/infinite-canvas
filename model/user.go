@@ -20,7 +20,12 @@ type User struct {
 	ID          string     `json:"id" gorm:"primaryKey"`
 	Username    string     `json:"username" gorm:"uniqueIndex"`
 	Password    string     `json:"password,omitempty"`
-	Email       string     `json:"email"`
+	Email       string     `json:"email" gorm:"index"`
+	EmailVerifiedAt string `json:"emailVerifiedAt,omitempty"`
+	EmailVerificationTokenHash string `json:"-"`
+	EmailVerificationExpiresAt string `json:"-"`
+	PasswordResetTokenHash string `json:"-"`
+	PasswordResetExpiresAt string `json:"-"`
 	DisplayName string     `json:"displayName"`
 	AvatarURL   string     `json:"avatarUrl"`
 	Role        UserRole   `json:"role"`
@@ -30,6 +35,8 @@ type User struct {
 	InviterID   string     `json:"inviterId"`
 	GithubID    string     `json:"githubId"`
 	LinuxDoID   string     `json:"linuxDoId" gorm:"index"`
+	GoogleID    string     `json:"googleId" gorm:"index"`
+	DoingFBID   string     `json:"doingfbId" gorm:"index"`
 	WechatID    string     `json:"wechatId"`
 	Status      UserStatus `json:"status"`
 	LastLoginAt string     `json:"lastLoginAt"`
@@ -58,8 +65,10 @@ type AuthUser struct {
 
 // AuthSession 登录会话信息。
 type AuthSession struct {
-	Token string   `json:"token"`
-	User  AuthUser `json:"user"`
+	Token                    string   `json:"token"`
+	User                     AuthUser `json:"user"`
+	EmailVerificationRequired bool     `json:"emailVerificationRequired,omitempty"`
+	VerificationEmailSent    bool     `json:"verificationEmailSent,omitempty"`
 }
 
 func PublicUser(user User) AuthUser {

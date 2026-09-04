@@ -5,11 +5,11 @@ services:
       context: .
       dockerfile: Dockerfile
     pull_policy: always
-    container_name: infinite-canvas
+    container_name: ${CONTAINER_NAME:-infinite-canvas}
     env_file:
       - .env
     volumes:
       - ./data:/app/data
     ports:
-      - "3000:3000"
+      - "${APP_BIND_ADDRESS:-0.0.0.0}:${APP_PORT:-3000}:3000"
     restart: unless-stopped

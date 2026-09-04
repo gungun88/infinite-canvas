@@ -3,6 +3,7 @@ package repository
 import (
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/tigerowo/infinite-canvas/model"
 	"gorm.io/gorm"
@@ -70,6 +71,30 @@ func GetUserByUsername(username string) (model.User, bool, error) {
 	return findUser(db, "username = ?", username)
 }
 
+func GetUserByEmail(email string) (model.User, bool, error) {
+	db, err := DB()
+	if err != nil {
+		return model.User{}, false, err
+	}
+	return findUser(db, "email = ?", email)
+}
+
+func GetUserByGoogleID(id string) (model.User, bool, error) {
+	db, err := DB()
+	if err != nil {
+		return model.User{}, false, err
+	}
+	return findUser(db, "google_id = ?", id)
+}
+
+func GetUserByDoingFBID(id string) (model.User, bool, error) {
+	db, err := DB()
+	if err != nil {
+		return model.User{}, false, err
+	}
+	return findUser(db, "doing_fb_id = ?", id)
+}
+
 // SaveUser 保存用户信息。
 func SaveUser(user model.User) (model.User, error) {
 	db, err := DB()
@@ -77,6 +102,46 @@ func SaveUser(user model.User) (model.User, error) {
 		return user, err
 	}
 	return user, db.Save(&user).Error
+}
+
+func VerifyEmail(tokenHash string, now string) (model.User, bool, error) {
+	db, err := DB()
+	if err != nil {
+		return model.User{}, false, err
+	}
+	var user model.User
+	tx := db.Where("email_verification_token_hash = ? AND email_verification_expires_at > ?", tokenHash, now).First(&user)
+	if errors.Is(tx.Error, gorm.ErrRecordNotFound) {
+		return model.User{}, false, nil
+	}
+	if tx.Error != nil {
+		return model.User{}, false, tx.Error
+	}
+	user.EmailVerifiedAt = now
+	user.EmailVerificationTokenHash = ""
+	user.EmailVerificationExpiresAt = ""
+	user.UpdatedAt = now
+	return user, true, db.Save(&user).Error
+}
+
+func ResetPassword(tokenHash string, password string, now string) (model.User, bool, error) {
+	db, err := DB()
+	if err != nil {
+		return model.User{}, false, err
+	}
+	var user model.User
+	tx := db.Where("password_reset_token_hash = ? AND password_reset_expires_at > ?", tokenHash, now).First(&user)
+	if errors.Is(tx.Error, gorm.ErrRecordNotFound) {
+		return model.User{}, false, nil
+	}
+	if tx.Error != nil {
+		return model.User{}, false, tx.Error
+	}
+	user.Password = password
+	user.PasswordResetTokenHash = ""
+	user.PasswordResetExpiresAt = ""
+	user.UpdatedAt = now
+	return user, true, db.Save(&user).Error
 }
 
 func ConsumeUserCredits(id string, credits int, now string) (model.User, bool, error) {
@@ -182,4 +247,8 @@ func findUser(db *gorm.DB, query string, args ...any) (model.User, bool, error) 
 		return model.User{}, false, nil
 	}
 	return user, err == nil, err
+}
+
+func nowString() string {
+	return time.Now().Format(time.RFC3339)
 }

@@ -58,7 +58,7 @@ func EnsureDefaultAdmin() error {
 	return err
 }
 
-func Register(username string, password string) (model.AuthSession, error) {
+func Register(username string, password string, email string) (model.AuthSession, error) {
 	settings, err := repository.GetSettings()
 	if err != nil {
 		return model.AuthSession{}, err
@@ -68,8 +68,12 @@ func Register(username string, password string) (model.AuthSession, error) {
 		return model.AuthSession{}, safeMessageError{message: "当前未开放注册"}
 	}
 	username = strings.TrimSpace(username)
+	email = strings.ToLower(strings.TrimSpace(email))
 	if strings.ContainsAny(username, " \t\r\n") {
 		return model.AuthSession{}, safeMessageError{message: "用户名不能包含空格"}
+	}
+	if email != "" && !strings.Contains(email, "@") {
+		return model.AuthSession{}, safeMessageError{message: "invalid_email"}
 	}
 	if username == "" || password == "" {
 		return model.AuthSession{}, safeMessageError{message: "用户名和密码不能为空"}
@@ -80,6 +84,14 @@ func Register(username string, password string) (model.AuthSession, error) {
 		}
 		return model.AuthSession{}, safeMessageError{message: "用户名已存在"}
 	}
+	if email != "" {
+		if _, ok, err := repository.GetUserByEmail(email); err != nil || ok {
+			if err != nil {
+				return model.AuthSession{}, err
+			}
+			return model.AuthSession{}, safeMessageError{message: "email_exists"}
+		}
+	}
 	hash, err := hashPassword(password)
 	if err != nil {
 		return model.AuthSession{}, err
@@ -88,6 +100,7 @@ func Register(username string, password string) (model.AuthSession, error) {
 		ID:        newID("user"),
 		Username:  username,
 		Password:  hash,
+		Email:     email,
 		Role:      model.UserRoleUser,
 		AffCode:   newAffCode(),
 		Status:    model.UserStatusActive,
@@ -97,11 +110,34 @@ func Register(username string, password string) (model.AuthSession, error) {
 	if err != nil {
 		return model.AuthSession{}, err
 	}
+	if email != "" && smtpConfigured() {
+		sent, err := issueVerificationEmail(user)
+		if err != nil {
+			return model.AuthSession{}, err
+		}
+		return model.AuthSession{
+			User:                         model.PublicUser(user),
+			EmailVerificationRequired:   true,
+			VerificationEmailSent:       sent,
+		}, nil
+	}
+	if email != "" && user.EmailVerifiedAt == "" {
+		user.EmailVerifiedAt = now()
+		user.UpdatedAt = now()
+		user, err = repository.SaveUser(user)
+		if err != nil {
+			return model.AuthSession{}, err
+		}
+	}
 	return newSession(user)
 }
 
 func Login(username string, password string) (model.AuthSession, error) {
-	user, ok, err := repository.GetUserByUsername(strings.TrimSpace(username))
+	identifier := strings.TrimSpace(username)
+	user, ok, err := repository.GetUserByUsername(identifier)
+	if !ok && err == nil && strings.Contains(identifier, "@") {
+		user, ok, err = repository.GetUserByEmail(strings.ToLower(identifier))
+	}
 	if err != nil {
 		return model.AuthSession{}, err
 	}
@@ -110,6 +146,13 @@ func Login(username string, password string) (model.AuthSession, error) {
 	}
 	if user.Status == model.UserStatusBan {
 		return model.AuthSession{}, safeMessageError{message: "账号已被禁用"}
+	}
+	if user.Email != "" && user.EmailVerifiedAt == "" && smtpConfigured() {
+		_, _ = issueVerificationEmail(user)
+		return model.AuthSession{}, safeMessageError{message: "email_not_verified"}
+	}
+	if user.Email != "" && user.EmailVerifiedAt == "" {
+		user.EmailVerifiedAt = now()
 	}
 	normalizeUserDefaults(&user)
 	user.LastLoginAt = now()
@@ -275,6 +318,13 @@ func SaveUser(user model.User, password string) (model.User, error) {
 		user.AvatarURL = saved.AvatarURL
 		user.Credits = saved.Credits
 		user.Extra = saved.Extra
+		user.EmailVerifiedAt = saved.EmailVerifiedAt
+		user.EmailVerificationTokenHash = saved.EmailVerificationTokenHash
+		user.EmailVerificationExpiresAt = saved.EmailVerificationExpiresAt
+		user.PasswordResetTokenHash = saved.PasswordResetTokenHash
+		user.PasswordResetExpiresAt = saved.PasswordResetExpiresAt
+		user.GoogleID = saved.GoogleID
+		user.DoingFBID = saved.DoingFBID
 		if user.AffCode == "" {
 			user.AffCode = saved.AffCode
 		}
