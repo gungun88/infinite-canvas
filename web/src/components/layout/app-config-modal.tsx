@@ -123,8 +123,9 @@ export function AppConfigModal() {
     }, [isConfigOpen]);
 
     const finishConfig = async () => {
-        const localIncomplete = effectiveMode === "local" && normalizeLocalChannels(config).some((channel) => !channel.baseUrl.trim() || !channel.apiKey.trim());
-        const modelIncomplete = !modelConfig.imageModel.trim() || !modelConfig.videoModel.trim() || !modelConfig.textModel.trim();
+        const incompleteLocalChannelCount = effectiveMode === "local"
+            ? normalizeLocalChannels(config).filter((channel) => !channel.baseUrl.trim() || !channel.apiKey.trim()).length
+            : 0;
         if (userStorage.enabled && userWebDAVStorage.enabled) {
             message.error("S3/R2 与 WebDAV 不能同时启用");
             return;
@@ -154,7 +155,7 @@ export function AppConfigModal() {
             clearFileStorageCache();
             setConfigDialogOpen(false);
             if ((config.syncStorageConfig || config.syncWebDAVStorageConfig) && !token) message.warning("请登录后再同步配置");
-            else if (localIncomplete || modelIncomplete) message.warning("部分模型或本地渠道密钥尚未配置完整，配置已保存");
+            else if (incompleteLocalChannelCount) message.warning(`配置已保存，${incompleteLocalChannelCount} 个本地渠道尚未填写完整，已配置完整的渠道可以正常使用`);
             else message.success(shouldPromptContinue ? "配置已保存，请继续刚才的请求" : "配置已保存");
             clearPromptContinue();
         } catch (error) {
@@ -167,20 +168,30 @@ export function AppConfigModal() {
     const refreshModels = async () => {
         if (effectiveMode === "remote") return;
         const channels = normalizeLocalChannels(config);
-        if (channels.some((channel) => !channel.baseUrl.trim() || !channel.apiKey.trim())) {
-            message.error("请先填写所有本地渠道的 Base URL 和 API Key");
+        const configuredChannels = channels.filter((channel) => channel.baseUrl.trim() && channel.apiKey.trim());
+        const skippedChannels = channels.filter((channel) => !channel.baseUrl.trim() || !channel.apiKey.trim());
+        if (!configuredChannels.length) {
+            message.error("请至少填写一个本地渠道的 Base URL 和 API Key");
             return;
         }
         setLoadingModels(true);
         try {
-            const results = await Promise.allSettled(channels.map(async (channel) => fetchImageModels(configForLocalChannel(config, channel))));
-            updateLocalChannels(channels.map((channel, index) => {
-                const result = results[index];
-                return result.status === "fulfilled" ? { ...channel, models: result.value } : channel;
-            }));
+            const results = await Promise.allSettled(configuredChannels.map(async (channel) => ({ channel, models: await fetchImageModels(configForLocalChannel(config, channel)) })));
+            const fetchedModels = new Map(results.filter((result): result is PromiseFulfilledResult<{ channel: LocalModelChannel; models: string[] }> => result.status === "fulfilled").map((result) => [result.value.channel.id, result.value.models]));
+            updateLocalChannels(channels.map((channel) => fetchedModels.has(channel.id) ? { ...channel, models: fetchedModels.get(channel.id) || [] } : channel));
             const failedCount = results.filter((result) => result.status === "rejected").length;
-            if (failedCount) message.warning(`${failedCount} 个渠道拉取失败，已保留原有模型，可在“选择”中手动增加模型`);
-            else message.success("模型列表已更新");
+            if (failedCount || skippedChannels.length) {
+                const failedNames = results
+                    .map((result, index) => result.status === "rejected" ? configuredChannels[index].name || configuredChannels[index].baseUrl : "")
+                    .filter(Boolean);
+                const details = [
+                    failedCount ? `${failedCount} 个渠道拉取失败${failedNames.length ? `（${failedNames.join("、")}）` : ""}` : "",
+                    skippedChannels.length ? `已跳过 ${skippedChannels.length} 个未填写完整的渠道` : "",
+                ].filter(Boolean).join("，");
+                message.warning(`${details}，已保留失败渠道的原有模型，可在“选择”中手动增加模型`);
+            } else {
+                message.success("模型列表已更新");
+            }
         } finally {
             setLoadingModels(false);
         }
@@ -382,6 +393,9 @@ export function AppConfigModal() {
                         </div>
                     )}
                     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                        <div className="md:col-span-2 xl:col-span-4 text-xs text-stone-500">
+                            各项能力独立配置：只使用生图时，仅需配置生图模型；未配置的视频、文本或音频模型不会影响已配置能力。
+                        </div>
                         {modelGroups.map((group) => (
                             <Form.Item key={group.modelKey} label={group.defaultLabel} className="mb-4">
                                 <ModelPicker config={modelConfig} value={modelConfig[group.modelKey]} channelId={modelConfig[group.channelKey]} onChange={(model, channelId) => { updateConfig(group.modelKey, model); if (channelId) updateConfig(group.channelKey, channelId); }} capability={group.capability} fullWidth />

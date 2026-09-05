@@ -72,6 +72,10 @@ func AdminChannelModels(index *int, channel model.ModelChannel) ([]string, error
 	return fetchAdminChannelModels(resolved)
 }
 
+func FetchModelChannelModels(channel model.ModelChannel) ([]string, error) {
+	return fetchAdminChannelModels(channel)
+}
+
 func AdminTestChannelModel(index *int, channel model.ModelChannel, modelName string) (string, error) {
 	resolved, err := resolveAdminChannel(index, channel)
 	if err != nil {
