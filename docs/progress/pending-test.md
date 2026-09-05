@@ -13,3 +13,4 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 配置 `DOINGFB_CLIENT_ID`、`DOINGFB_CLIENT_SECRET`、`DOINGFB_REDIRECT_URI` 后，DoingFB OAuth 应能完成授权回调并登录。
 - Google / DoingFB OAuth 登录后退出账号应直接进入干净登录页；即使回调后的用户信息请求未完成，也不应恢复旧会话或跳过登录页。
 - 配置 `SMTP_HOST`、`SMTP_FROM` 等邮件变量后，注册验证邮件、重发验证邮件和密码重置邮件应能正常发送；未配置 SMTP 时，原用户名注册仍可直接登录。
+- 首页轮播不应再显示 88API 和 MiniMax & METASO 两个宣传轮播项，其他首页媒体应保持正常显示和切换。
