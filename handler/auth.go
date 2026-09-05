@@ -6,9 +6,9 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/tigerowo/infinite-canvas/config"
 	"github.com/tigerowo/infinite-canvas/model"
 	"github.com/tigerowo/infinite-canvas/service"
-	"github.com/tigerowo/infinite-canvas/config"
 )
 
 type loginRequest struct {
@@ -34,7 +34,6 @@ type resetRequest struct {
 	Token    string `json:"token"`
 	Password string `json:"password"`
 }
-
 
 type saveUserRequest struct {
 	ID          string           `json:"id"`
@@ -280,7 +279,7 @@ func loginRedirect(r *http.Request, redirect string, token string, message strin
 }
 
 func AdminDeleteUser(w http.ResponseWriter, r *http.Request, id string) {
-	if err := service.DeleteUser(id); err != nil {
+	if err := service.DeleteUser(r.Context(), id); err != nil {
 		FailError(w, err)
 		return
 	}

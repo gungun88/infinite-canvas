@@ -125,9 +125,9 @@ export async function resolveMediaUrl(storageKey?: string, fallback = "") {
     }
     if (storageKey.startsWith("server:")) {
         const id = storageKey.slice("server:".length);
-        if (fallback && !fallback.startsWith("blob:") && !fallback.includes("direct=1") && !fallback.startsWith("/webdav-media/")) return fallback;
+        if (fallback && !fallback.startsWith("blob:") && !fallback.includes("direct=1") && !fallback.includes("/api/files/") && !fallback.startsWith("/webdav-media/")) return fallback;
         const { getStorageObjectInfo } = await import("@/services/api/storage");
-        const info = await getStorageObjectInfo(id).catch(() => null);
+        const info = await getStorageObjectInfo(id, useUserStore.getState().token || undefined).catch(() => null);
         if (!info) return fallback;
         const provider = loadUserStorageProvider();
         if (info.direct && provider?.type === "webdav") {
@@ -138,7 +138,7 @@ export async function resolveMediaUrl(storageKey?: string, fallback = "") {
                 if (!useUserStore.getState().token || !direct.isWebDAVDirectUnavailable(error)) throw error;
             }
         }
-        const url = info.publicUrl || `/api/files/${encodeURIComponent(id)}/content`;
+        const url = info.publicUrl || info.contentUrl || `/api/files/${encodeURIComponent(id)}/content`;
         return url;
     }
     return fallback;

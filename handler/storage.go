@@ -11,6 +11,8 @@ import (
 	"github.com/tigerowo/infinite-canvas/service"
 )
 
+const storageUploadLimitBytes int64 = 129 << 20
+
 // StorageConfig 返回公开存储配置。
 func StorageConfig(w http.ResponseWriter, r *http.Request) {
 	config, err := service.PublicStorageConfig()
@@ -57,6 +59,7 @@ func MeasureUserStorageProvider(w http.ResponseWriter, r *http.Request) {
 
 // UploadFile 上传文件到对象存储。
 func UploadFile(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, storageUploadLimitBytes)
 	file, header, err := r.FormFile("file")
 	if err != nil {
 		Fail(w, "请选择要上传的文件")
@@ -130,6 +133,12 @@ func DeleteDirectFileRecord(w http.ResponseWriter, r *http.Request, id string) {
 
 // FileContent 获取文件内容。
 func FileContent(w http.ResponseWriter, r *http.Request, id string) {
+	if _, err := service.StorageObjectInfo(r.Context(), id); err != nil {
+		if _, publicErr := service.StorageObjectInfoPublic(id); publicErr != nil && !service.ValidateStorageAccessToken(id, r.URL.Query().Get("access_token")) {
+			FailWithStatus(w, http.StatusForbidden, "无权访问该对象")
+			return
+		}
+	}
 	download, err := service.DownloadStorageObject(id, r.Header.Get("Range"))
 	if err != nil {
 		FailError(w, err)
@@ -137,7 +146,11 @@ func FileContent(w http.ResponseWriter, r *http.Request, id string) {
 	}
 	defer download.Stream.Close()
 	w.Header().Set("Content-Type", download.Object.MimeType)
-	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	if r.URL.Query().Get("access_token") != "" {
+		w.Header().Set("Cache-Control", "private, max-age=300")
+	} else {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	}
 	if download.AcceptRanges {
 		w.Header().Set("Accept-Ranges", "bytes")
 	}
@@ -155,7 +168,7 @@ func FileContent(w http.ResponseWriter, r *http.Request, id string) {
 
 // FileInfo 获取文件元数据。
 func FileInfo(w http.ResponseWriter, r *http.Request, id string) {
-	object, err := service.StorageObjectInfo(id)
+	object, err := service.StorageObjectInfo(r.Context(), id)
 	if err != nil {
 		FailError(w, err)
 		return
@@ -218,9 +231,13 @@ func ProxyImage(w http.ResponseWriter, r *http.Request) {
 	isImage := strings.HasPrefix(contentType, "image/")
 	var data []byte
 	if isImage {
-		data, err = io.ReadAll(resp.Body)
+		data, err = io.ReadAll(io.LimitReader(resp.Body, 30<<20+1))
 		if err != nil {
 			FailWithStatus(w, http.StatusBadGateway, "代理图片请求失败")
+			return
+		}
+		if int64(len(data)) > 30<<20 {
+			FailWithStatus(w, http.StatusBadGateway, "代理图片超过大小限制")
 			return
 		}
 	}

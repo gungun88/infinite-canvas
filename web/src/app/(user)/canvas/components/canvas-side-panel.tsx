@@ -97,6 +97,15 @@ export function CanvasSidePanel({ nodes, selectedNodeIds, open, width, onWidthCh
     const [mounted, setMounted] = useState(open);
     const [closing, setClosing] = useState(false);
     const [resizing, setResizing] = useState(false);
+    const [narrowViewport, setNarrowViewport] = useState(false);
+
+    useEffect(() => {
+        const update = () => setNarrowViewport(window.innerWidth < 640);
+        update();
+        window.addEventListener("resize", update, { passive: true });
+        return () => window.removeEventListener("resize", update);
+    }, []);
+    const panelRenderWidth = narrowViewport ? Math.min(width, 360) : width;
 
     useEffect(() => {
         if (open) {
@@ -131,9 +140,9 @@ export function CanvasSidePanel({ nodes, selectedNodeIds, open, width, onWidthCh
 
     return (
         <motion.div
-            className="relative z-[60] flex h-full shrink-0"
+            className={cn("relative z-[60] flex h-full shrink-0", narrowViewport && "fixed inset-y-0 left-0")}
             initial={{ width: 0, opacity: 0 }}
-            animate={{ width: open ? width + 1 : 0, opacity: open ? 1 : 0 }}
+            animate={{ width: open ? panelRenderWidth + 1 : 0, opacity: open ? 1 : 0 }}
             transition={{ duration: resizing ? 0 : PANEL_MOTION_SECONDS, ease: PANEL_EASE }}
             style={{ overflow: "clip", pointerEvents: closing ? "none" : undefined }}
         >
@@ -142,7 +151,7 @@ export function CanvasSidePanel({ nodes, selectedNodeIds, open, width, onWidthCh
                 initial={{ x: -48 }}
                 animate={{ x: closing ? -28 : 0 }}
                 transition={{ duration: resizing ? 0 : PANEL_MOTION_SECONDS, ease: PANEL_EASE }}
-                style={{ width, background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
+                style={{ width: narrowViewport ? "min(88vw, 360px)" : width, background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
                 data-canvas-no-zoom
             >
                 <div className="flex items-center gap-5 px-4 pt-3.5">
@@ -159,7 +168,7 @@ export function CanvasSidePanel({ nodes, selectedNodeIds, open, width, onWidthCh
                         <CanvasPromptsTab theme={theme} onInsert={onInsertAsset} />
                     )}
                 </div>
-                <button type="button" className="absolute inset-y-0 right-0 z-40 w-4 translate-x-1/2 cursor-col-resize" onPointerDown={startResize} aria-label="调整左侧面板宽度" />
+                {!narrowViewport ? <button type="button" className="absolute inset-y-0 right-0 z-40 w-4 translate-x-1/2 cursor-col-resize" onPointerDown={startResize} aria-label="调整左侧面板宽度" /> : null}
             </motion.aside>
         </motion.div>
     );

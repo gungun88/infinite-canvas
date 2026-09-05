@@ -59,6 +59,7 @@ func SaveSettings(settings model.Settings) (model.Settings, error) {
 	if err == nil {
 		RefreshPromptSyncScheduler()
 		RefreshStorageCapacityScheduler()
+		RefreshStorageCleanupScheduler()
 		RefreshAILogCleanupScheduler()
 	}
 	return hidePrivateAPIKeys(result), err

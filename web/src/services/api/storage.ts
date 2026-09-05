@@ -15,10 +15,11 @@ export type StorageObjectInfo = {
     mimeType: string;
     bytes: number;
     direct: boolean;
+    contentUrl?: string;
 };
 
-export function getStorageObjectInfo(id: string) {
-    return apiGet<StorageObjectInfo>(`/api/files/${encodeURIComponent(id)}`);
+export function getStorageObjectInfo(id: string, token?: string) {
+    return apiGet<StorageObjectInfo>(`/api/files/${encodeURIComponent(id)}`, undefined, token);
 }
 
 export function registerDirectStorageObject(

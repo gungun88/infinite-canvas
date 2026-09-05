@@ -2,9 +2,45 @@ package service
 
 import (
 	"testing"
+	"time"
 
+	"github.com/tigerowo/infinite-canvas/config"
 	"github.com/tigerowo/infinite-canvas/model"
 )
+
+func TestStorageObjectOlderThan(t *testing.T) {
+	old := time.Now().Add(-25 * time.Hour).Format(time.RFC3339)
+	recent := time.Now().Add(-23 * time.Hour).Format(time.RFC3339)
+	if !storageObjectOlderThan(old, 24*time.Hour) {
+		t.Fatal("an object older than the retention period should match")
+	}
+	if storageObjectOlderThan(recent, 24*time.Hour) {
+		t.Fatal("an object newer than the retention period should not match")
+	}
+	if storageObjectOlderThan("invalid", 24*time.Hour) {
+		t.Fatal("an invalid timestamp should not match")
+	}
+}
+
+func TestValidateStorageAccessToken(t *testing.T) {
+	previousSecret := config.Cfg.JWTSecret
+	config.Cfg.JWTSecret = "storage-test-secret"
+	defer func() { config.Cfg.JWTSecret = previousSecret }()
+
+	token, err := storageAccessToken("object-1", "user-1")
+	if err != nil {
+		t.Fatalf("storageAccessToken() error = %v", err)
+	}
+	if !ValidateStorageAccessToken("object-1", token) {
+		t.Fatal("a token for the same object should be valid")
+	}
+	if ValidateStorageAccessToken("object-2", token) {
+		t.Fatal("a token for another object should be rejected")
+	}
+	if ValidateStorageAccessToken("object-1", token+"x") {
+		t.Fatal("a tampered token should be rejected")
+	}
+}
 
 func TestValidateEnabledStorageProviderTypes(t *testing.T) {
 	if err := validateEnabledStorageProviderTypes([]model.StorageProvider{

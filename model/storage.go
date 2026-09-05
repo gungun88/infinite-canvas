@@ -16,4 +16,5 @@ type StorageObject struct {
 	CreatedBy  string `json:"createdBy" gorm:"index"`
 	CreatedAt  string `json:"createdAt"`
 	DeletedAt  string `json:"deletedAt"`
+	ContentURL string `json:"contentUrl,omitempty" gorm:"-"`
 }

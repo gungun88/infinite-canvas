@@ -113,10 +113,10 @@ export default function AssetsPage() {
 
     return (
         <div className="flex h-full flex-col overflow-hidden bg-background text-stone-900 dark:text-stone-100">
-            <main className="min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] px-6 py-8 [background-size:16px_16px] dark:bg-[radial-gradient(rgba(245,245,244,.14)_1px,transparent_1px)]">
+            <main className="min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] px-3 py-5 [background-size:16px_16px] dark:bg-[radial-gradient(rgba(245,245,244,.14)_1px,transparent_1px)] sm:px-6 sm:py-8">
                 <div className="pb-8">
                     <div className="mx-auto max-w-5xl text-center">
-                        <h1 className="text-4xl font-semibold tracking-tight text-stone-950 dark:text-stone-100">我的素材</h1>
+                        <h1 className="text-3xl font-semibold tracking-tight text-stone-950 dark:text-stone-100 sm:text-4xl">我的素材</h1>
                         <p className="mt-3 text-sm text-stone-500 dark:text-stone-400">收藏常用文本和图片，按类型、标题和标签快速查找。</p>
                     </div>
 
@@ -159,24 +159,24 @@ export default function AssetsPage() {
                                     ))}
                                 </div>
                             </div>
-                            <div className="flex flex-wrap gap-4">
+                            <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:gap-4">
                                 <button
                                     type="button"
-                                    className="cursor-pointer text-sm font-medium text-stone-700 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:underline dark:text-stone-300"
+                                    className="cursor-pointer text-center text-sm font-medium text-stone-700 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:underline dark:text-stone-300"
                                     onClick={() => void exportAllAssets()}
                                 >
                                     导出素材
                                 </button>
                                 <button
                                     type="button"
-                                    className="cursor-pointer text-sm font-medium text-stone-700 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:underline dark:text-stone-300"
+                                    className="cursor-pointer text-center text-sm font-medium text-stone-700 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:underline dark:text-stone-300"
                                     onClick={() => assetInputRef.current?.click()}
                                 >
                                     导入素材
                                 </button>
                                 <button
                                     type="button"
-                                    className="cursor-pointer text-sm font-medium text-stone-700 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:underline dark:text-stone-300"
+                                    className="cursor-pointer text-center text-sm font-medium text-stone-700 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:underline dark:text-stone-300"
                                     onClick={openCreate}
                                 >
                                     新增素材
@@ -187,7 +187,7 @@ export default function AssetsPage() {
                 </div>
 
                 <div className="mx-auto flex max-w-7xl flex-col gap-5">
-                    <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    <div className="grid gap-3 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                         {visibleAssets.map((asset) => (
                             <AssetCard key={asset.id} asset={asset} onOpen={() => setPreviewAsset(asset)} onEdit={() => openEdit(asset)} onCopy={copyAssetText} onDownload={downloadAsset} onDelete={() => setDeletingAsset(asset)} />
                         ))}
@@ -268,7 +268,7 @@ function AssetCard({ asset, onOpen, onEdit, onCopy, onDownload, onDelete }: { as
                     </div>
                 </div>
             </button>
-            <div className="flex items-center gap-2 px-4 pb-4">
+            <div className="grid grid-cols-2 items-center gap-2 px-4 pb-4 sm:flex sm:flex-wrap">
                 <Button size="small" onClick={onOpen}>
                     查看
                 </Button>
@@ -296,7 +296,7 @@ function AssetCard({ asset, onOpen, onEdit, onCopy, onDownload, onDelete }: { as
 function AssetDrawer({ asset, onClose, onCopy, onDownload }: { asset: Asset | null; onClose: () => void; onCopy: (asset: Asset) => void; onDownload: (asset: Asset) => void }) {
     const cover = asset ? asset.coverUrl || (asset.kind === "image" ? asset.data.dataUrl : "") : "";
     return (
-        <Drawer title="素材详情" open={Boolean(asset)} size="large" onClose={onClose}>
+        <Drawer title="素材详情" open={Boolean(asset)} size="min(560px, 100vw)" onClose={onClose}>
             {asset ? (
                 <div className="space-y-5">
                     {cover ? (

@@ -20,8 +20,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
+	"github.com/tigerowo/infinite-canvas/config"
 	"github.com/tigerowo/infinite-canvas/model"
 	"github.com/tigerowo/infinite-canvas/repository"
 	"gorm.io/gorm"
@@ -76,6 +78,16 @@ var (
 	storageCapacityCron *cron.Cron
 	storageCapacityOnce sync.Once
 	storageCapacityMu   sync.Mutex
+	storageCleanupCron  *cron.Cron
+	storageCleanupOnce  sync.Once
+	storageCleanupMu    sync.Mutex
+)
+
+const (
+	storageUploadLimitBytes   int64 = 129 << 20
+	storageCleanupCronSpec          = "0 4 * * *"
+	storageAnonymousRetention       = 24 * time.Hour
+	storageOrphanRetention          = 7 * 24 * time.Hour
 )
 
 // HasAdminStorageProvider 检查管理员是否配置了有效的对象存储。
@@ -143,8 +155,64 @@ func PublicStorageConfig() (model.PublicStorageSetting, error) {
 }
 
 // StorageObjectInfo 获取存储对象元数据。
-func StorageObjectInfo(id string) (model.StorageObject, error) {
-	return repository.GetStorageObject(id)
+type storageAccessClaims struct {
+	ObjectID string `json:"objectId"`
+	UserID   string `json:"userId"`
+	jwt.RegisteredClaims
+}
+
+func StorageObjectInfo(ctx context.Context, id string) (model.StorageObject, error) {
+	object, err := repository.GetStorageObject(id)
+	if err != nil {
+		return model.StorageObject{}, err
+	}
+	if object.PublicURL != "" {
+		return object, nil
+	}
+	user, ok := UserFromContext(ctx)
+	if !ok || user.ID == "" || user.ID == "anonymous" || object.CreatedBy != user.ID {
+		return model.StorageObject{}, errors.New("无权访问该对象")
+	}
+	token, err := storageAccessToken(object.ID, user.ID)
+	if err != nil {
+		return model.StorageObject{}, err
+	}
+	object.ContentURL = "/api/files/" + url.PathEscape(object.ID) + "/content?access_token=" + url.QueryEscape(token)
+	return object, nil
+}
+
+func StorageObjectInfoPublic(id string) (model.StorageObject, error) {
+	object, err := repository.GetStorageObject(id)
+	if err != nil || object.PublicURL == "" {
+		if err != nil {
+			return model.StorageObject{}, err
+		}
+		return model.StorageObject{}, errors.New("对象不是公开对象")
+	}
+	return object, nil
+}
+
+func ValidateStorageAccessToken(id string, token string) bool {
+	claims := storageAccessClaims{}
+	parsed, err := jwt.ParseWithClaims(token, &claims, func(token *jwt.Token) (any, error) {
+		if token.Method != jwt.SigningMethodHS256 {
+			return nil, errors.New("invalid storage token")
+		}
+		return []byte(config.Cfg.JWTSecret), nil
+	})
+	return err == nil && parsed.Valid && claims.Issuer == "infinite-canvas-storage" && claims.ObjectID == id && claims.UserID != ""
+}
+
+func storageAccessToken(objectID string, userID string) (string, error) {
+	now := time.Now()
+	return jwt.NewWithClaims(jwt.SigningMethodHS256, storageAccessClaims{
+		ObjectID: objectID,
+		UserID:   userID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer: "infinite-canvas-storage", Subject: objectID,
+			IssuedAt: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(now.Add(15 * time.Minute)),
+		},
+	}).SignedString([]byte(config.Cfg.JWTSecret))
 }
 
 // SaveCurrentUserStorageProvider 保存用户配置的存储提供商。
@@ -237,6 +305,7 @@ func UploadStorageObjectWithProvider(ctx context.Context, filename string, conte
 		MimeType: contentType, Bytes: int64(len(data)), SHA256: hex.EncodeToString(sum[:]), CreatedBy: userID, CreatedAt: now(),
 	}
 	if _, err := repository.SaveStorageObject(object); err != nil {
+		_ = deleteStorageObjectData(provider, objectKey)
 		return UploadedStorageObject{}, err
 	}
 	url := "/api/files/" + objectID + "/content"
@@ -445,6 +514,93 @@ func StartStorageCapacityScheduler() {
 		storageCapacityCron.Start()
 	})
 	RefreshStorageCapacityScheduler()
+}
+
+// StartStorageCleanupScheduler removes expired anonymous records and untracked R2 objects.
+func StartStorageCleanupScheduler() {
+	storageCleanupOnce.Do(func() {
+		storageCleanupCron = cron.New()
+		storageCleanupCron.Start()
+	})
+	RefreshStorageCleanupScheduler()
+}
+
+func RefreshStorageCleanupScheduler() {
+	storageCleanupMu.Lock()
+	defer storageCleanupMu.Unlock()
+	if storageCleanupCron == nil {
+		return
+	}
+	for _, entry := range storageCleanupCron.Entries() {
+		storageCleanupCron.Remove(entry.ID)
+	}
+	if _, err := storageCleanupCron.AddFunc(storageCleanupCronSpec, CleanupStorageObjects); err != nil {
+		log.Printf("add storage cleanup cron failed err=%v", err)
+	}
+}
+
+func CleanupStorageObjects() {
+	settings, err := repository.GetSettings()
+	if err != nil {
+		log.Printf("storage cleanup settings load failed err=%v", err)
+		return
+	}
+	settings = normalizeSettings(settings)
+	for _, provider := range settings.Private.Storage.Providers {
+		if !provider.Enabled || !storageProviderConfigured(provider) {
+			continue
+		}
+		objects, err := repository.ListStorageObjectsByProvider(provider.ID)
+		if err != nil {
+			log.Printf("storage cleanup records load failed provider=%s err=%v", provider.Name, err)
+			continue
+		}
+		for _, object := range objects {
+			if !strings.HasPrefix(object.CreatedBy, "anonymous-") || !storageObjectOlderThan(object.CreatedAt, storageAnonymousRetention) {
+				continue
+			}
+			if err := deleteStorageObjectData(provider, object.ObjectKey); err != nil {
+				log.Printf("storage cleanup anonymous object failed key=%s err=%v", object.ObjectKey, err)
+				continue
+			}
+			_ = repository.DeleteStorageObjectRecord(object.ID)
+		}
+		if provider.Type == model.StorageProviderTypeS3 {
+			cleanupS3Orphans(provider, objects)
+		}
+	}
+}
+
+func cleanupS3Orphans(provider model.StorageProvider, records []model.StorageObject) {
+	if strings.Trim(provider.PathPrefix, "/") == "" {
+		return
+	}
+	known := make(map[string]struct{}, len(records))
+	for _, record := range records {
+		known[record.ObjectKey] = struct{}{}
+	}
+	items, err := listS3Objects(provider)
+	if err != nil {
+		log.Printf("storage cleanup object list failed provider=%s err=%v", provider.Name, err)
+		return
+	}
+	cutoff := time.Now().Add(-storageOrphanRetention)
+	for _, item := range items {
+		if _, ok := known[item.Key]; ok || item.Key == "" || !strings.HasPrefix(item.Key, strings.Trim(provider.PathPrefix, "/")+"/") {
+			continue
+		}
+		if item.LastModified.IsZero() || item.LastModified.After(cutoff) {
+			continue
+		}
+		if err := deleteS3Object(provider, item.Key); err != nil {
+			log.Printf("storage cleanup orphan object failed key=%s err=%v", item.Key, err)
+		}
+	}
+}
+
+func storageObjectOlderThan(createdAt string, age time.Duration) bool {
+	created, err := time.Parse(time.RFC3339, createdAt)
+	return err == nil && created.Before(time.Now().Add(-age))
 }
 
 // RefreshStorageCapacityScheduler 刷新存储容量定时统计计划。
@@ -897,8 +1053,57 @@ type listBucketResult struct {
 	IsTruncated           bool     `xml:"IsTruncated"`
 	NextContinuationToken string   `xml:"NextContinuationToken"`
 	Contents              []struct {
-		Size int64 `xml:"Size"`
+		Key          string    `xml:"Key"`
+		Size         int64     `xml:"Size"`
+		LastModified time.Time `xml:"LastModified"`
 	} `xml:"Contents"`
+}
+
+type s3ObjectItem struct {
+	Key          string
+	LastModified time.Time
+}
+
+func listS3Objects(provider model.StorageProvider) ([]s3ObjectItem, error) {
+	items := []s3ObjectItem{}
+	var token string
+	for {
+		query := url.Values{}
+		query.Set("list-type", "2")
+		if prefix := strings.Trim(provider.PathPrefix, "/"); prefix != "" {
+			query.Set("prefix", prefix+"/")
+		}
+		if token != "" {
+			query.Set("continuation-token", token)
+		}
+		request, err := newS3RequestWithQuery(http.MethodGet, provider, "", query, nil, 0)
+		if err != nil {
+			return nil, err
+		}
+		response, err := SafeProxyHTTPClient().Do(request)
+		if err != nil {
+			return nil, err
+		}
+		body, readErr := io.ReadAll(io.LimitReader(response.Body, 32*1024*1024))
+		_ = response.Body.Close()
+		if readErr != nil {
+			return nil, readErr
+		}
+		if response.StatusCode < 200 || response.StatusCode >= 300 {
+			return nil, fmt.Errorf("storage object list failed: %s", response.Status)
+		}
+		var result listBucketResult
+		if err := xml.Unmarshal(body, &result); err != nil {
+			return nil, err
+		}
+		for _, item := range result.Contents {
+			items = append(items, s3ObjectItem{Key: item.Key, LastModified: item.LastModified})
+		}
+		if !result.IsTruncated || result.NextContinuationToken == "" {
+			return items, nil
+		}
+		token = result.NextContinuationToken
+	}
 }
 
 func extensionForContentType(contentType string) string {

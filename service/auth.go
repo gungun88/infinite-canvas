@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -444,8 +445,47 @@ func DeleteCreditLog(id string) error {
 	return repository.DeleteCreditLog(id)
 }
 
-func DeleteUser(id string) error {
-	return repository.DeleteUser(id)
+func DeleteUser(ctx context.Context, id string) error {
+	actor, ok := UserFromContext(ctx)
+	if !ok || actor.Role != model.UserRoleAdmin {
+		return safeMessageError{message: "需要管理员权限"}
+	}
+	target, found, err := repository.GetUserByID(id)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return safeMessageError{message: "用户不存在"}
+	}
+	if actor.ID == target.ID {
+		return safeMessageError{message: "不能删除当前登录的管理员账号"}
+	}
+	if target.Role == model.UserRoleAdmin {
+		hasAdmin, err := repository.HasAdmin()
+		if err != nil {
+			return err
+		}
+		if hasAdmin {
+			adminCount, err := repository.CountAdmins()
+			if err != nil {
+				return err
+			}
+			if adminCount <= 1 {
+				return safeMessageError{message: "不能删除系统最后一个管理员"}
+			}
+		}
+	}
+	objects, err := repository.ListStorageObjectsByOwner(target.ID)
+	if err != nil {
+		return err
+	}
+	for _, object := range objects {
+		if err := DeleteStorageObject(WithUser(context.Background(), model.PublicUser(target)), object.ID, nil); err != nil {
+			log.Printf("delete user storage object failed user=%s object=%s err=%v", target.ID, object.ID, err)
+			return safeMessageError{message: "用户对象存储清理失败，请修复存储配置后重试删除"}
+		}
+	}
+	return repository.DeleteUserCascade(target.ID)
 }
 
 func GuestUser() model.AuthUser {

@@ -71,6 +71,15 @@ func GetUserByUsername(username string) (model.User, bool, error) {
 	return findUser(db, "username = ?", username)
 }
 
+func CountAdmins() (int64, error) {
+	db, err := DB()
+	if err != nil {
+		return 0, err
+	}
+	var total int64
+	return total, db.Model(&model.User{}).Where("role = ?", model.UserRoleAdmin).Count(&total).Error
+}
+
 func GetUserByEmail(email string) (model.User, bool, error) {
 	db, err := DB()
 	if err != nil {
@@ -247,6 +256,32 @@ func findUser(db *gorm.DB, query string, args ...any) (model.User, bool, error) 
 		return model.User{}, false, nil
 	}
 	return user, err == nil, err
+}
+
+func DeleteUserCascade(id string) error {
+	db, err := DB()
+	if err != nil {
+		return err
+	}
+	return db.Transaction(func(tx *gorm.DB) error {
+		for _, item := range []any{
+			&model.UserConfig{}, &model.CanvasProject{},
+			&model.VideoTask{}, &model.VideoGenerationLog{}, &model.ImageGenerationLog{},
+			&model.CanvasImageTask{}, &model.CanvasAudioTask{}, &model.CreditLog{},
+			&model.AICallLog{},
+		} {
+			if err := tx.Where("user_id = ?", id).Delete(item).Error; err != nil {
+				return err
+			}
+		}
+		if err := tx.Where("created_by = ?", id).Delete(&model.StorageObject{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("owner_user_id = ?", id).Delete(&model.CreativeWorkflow{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&model.User{}, "id = ?", id).Error
+	})
 }
 
 func nowString() string {

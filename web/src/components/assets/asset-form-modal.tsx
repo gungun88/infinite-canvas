@@ -39,6 +39,7 @@ export function AssetFormModal({ open, asset = null, onClose }: AssetFormModalPr
     const [formKind, setFormKind] = useState<AssetKind>("text");
     const [imageDraft, setImageDraft] = useState<ImageDraft>(null);
     const [mediaDraft, setMediaDraft] = useState<MediaDraft>(null);
+    const [uploading, setUploading] = useState(false);
     const coverUrl = Form.useWatch("coverUrl", form) || "";
     const title = Form.useWatch("title", form) || "";
     const tags = Form.useWatch("tags", form) || [];
@@ -115,28 +116,42 @@ export function AssetFormModal({ open, asset = null, onClose }: AssetFormModalPr
 
     const readImageFile = async (file?: File) => {
         if (!file || !file.type.startsWith("image/")) return;
-        const image = await uploadImage(file);
-        const draft = { dataUrl: image.url, storageKey: image.storageKey, width: image.width, height: image.height, bytes: image.bytes, mimeType: image.mimeType };
-        setImageDraft(draft);
-        form.setFieldValue("content", draft.dataUrl);
-        if (!form.getFieldValue("coverUrl")) form.setFieldValue("coverUrl", draft.dataUrl);
-        if (!form.getFieldValue("title")) form.setFieldValue("title", file.name);
+        setUploading(true);
+        try {
+            const image = await uploadImage(file);
+            const draft = { dataUrl: image.url, storageKey: image.storageKey, width: image.width, height: image.height, bytes: image.bytes, mimeType: image.mimeType };
+            setImageDraft(draft);
+            form.setFieldValue("content", draft.dataUrl);
+            if (!form.getFieldValue("coverUrl")) form.setFieldValue("coverUrl", draft.dataUrl);
+            if (!form.getFieldValue("title")) form.setFieldValue("title", file.name);
+        } catch (error) {
+            message.error(error instanceof Error ? `图片上传失败：${error.message}` : "图片上传失败");
+        } finally {
+            setUploading(false);
+        }
     };
 
     const readMediaFile = async (file?: File) => {
         if (!file) return;
         if (formKind === "video" && !file.type.startsWith("video/")) return;
         if (formKind === "audio" && !file.type.startsWith("audio/") && !/\.(mp3|wav)$/i.test(file.name)) return;
-        const media = await uploadAssetMediaFile(file, formKind === "audio" ? "asset-audio" : "asset-video");
-        const draft = formKind === "audio" ? { url: media.url, storageKey: media.storageKey, bytes: media.bytes, mimeType: media.mimeType } : { url: media.url, storageKey: media.storageKey, width: media.width || 0, height: media.height || 0, bytes: media.bytes, mimeType: media.mimeType };
-        setMediaDraft(draft);
-        form.setFieldValue("content", media.url);
-        if (!form.getFieldValue("title")) form.setFieldValue("title", file.name);
+        setUploading(true);
+        try {
+            const media = await uploadAssetMediaFile(file, formKind === "audio" ? "asset-audio" : "asset-video");
+            const draft = formKind === "audio" ? { url: media.url, storageKey: media.storageKey, bytes: media.bytes, mimeType: media.mimeType } : { url: media.url, storageKey: media.storageKey, width: media.width || 0, height: media.height || 0, bytes: media.bytes, mimeType: media.mimeType };
+            setMediaDraft(draft);
+            form.setFieldValue("content", media.url);
+            if (!form.getFieldValue("title")) form.setFieldValue("title", file.name);
+        } catch (error) {
+            message.error(error instanceof Error ? `媒体上传失败：${error.message}` : "媒体上传失败");
+        } finally {
+            setUploading(false);
+        }
     };
 
     return (
-            <Modal title={asset ? "编辑素材" : "新增素材"} open={open} width={980} onCancel={onClose} onOk={() => void saveAsset()} okText="保存" cancelText="取消" destroyOnHidden>
-                <div className="grid gap-6 pt-1 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <Modal title={asset ? "编辑素材" : "新增素材"} open={open} width="min(980px, calc(100vw - 24px))" onCancel={onClose} onOk={() => void saveAsset()} okText="保存" cancelText="取消" okButtonProps={{ loading: uploading, disabled: uploading }} destroyOnHidden styles={{ body: { maxHeight: "calc(100dvh - 180px)", overflowY: "auto", paddingInline: 0 } }}>
+                <div className="grid min-w-0 gap-6 pt-1 lg:grid-cols-[minmax(0,1fr)_320px]">
                     <Form form={form} layout="vertical" requiredMark={false} initialValues={{ kind: "text", tags: [] }}>
                         <Form.Item name="kind" label="类型">
                             <Select
@@ -160,7 +175,7 @@ export function AssetFormModal({ open, asset = null, onClose }: AssetFormModalPr
                         <Form.Item name="coverUrl" label="封面 URL">
                             <Space.Compact className="w-full">
                                 <Input placeholder="可粘贴图片 URL，也可以上传本地封面" />
-                                <Button icon={<Upload className="size-3.5" />} onClick={() => coverInputRef.current?.click()}>
+                                <Button icon={<Upload className="size-3.5" />} loading={uploading} disabled={uploading} onClick={() => coverInputRef.current?.click()}>
                                     上传
                                 </Button>
                             </Space.Compact>
@@ -185,7 +200,7 @@ export function AssetFormModal({ open, asset = null, onClose }: AssetFormModalPr
                                 <div className="rounded-lg border border-dashed border-stone-300 p-4 dark:border-stone-700">
                                     <Space.Compact className="w-full">
                                         <Input placeholder={formKind === "image" ? "填写图片 URL，或选择本地图片文件" : formKind === "video" ? "填写视频 URL，或选择本地视频文件" : "填写音频 URL，或选择本地音频文件"} />
-                                        <Button icon={<Upload className="size-4" />} onClick={() => (formKind === "image" ? imageInputRef.current?.click() : mediaInputRef.current?.click())}>
+                                        <Button icon={<Upload className="size-4" />} loading={uploading} disabled={uploading} onClick={() => (formKind === "image" ? imageInputRef.current?.click() : mediaInputRef.current?.click())}>
                                             上传
                                         </Button>
                                     </Space.Compact>
