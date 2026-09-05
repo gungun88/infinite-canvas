@@ -175,9 +175,10 @@ export async function uploadRemoteImageToServer(url: string, filename: string): 
     const uploadResponse = await fetch("/api/v1/files", { method: "POST", headers: { Authorization: "Bearer " + token }, body: formData });
     const payload = (await uploadResponse.json().catch(() => null)) as { code?: number; msg?: string; data?: UploadedImage } | null;
     if (!uploadResponse.ok || payload?.code !== 0 || !payload.data) throw new Error(payload?.msg || "服务端图片上传失败");
-    const meta = await readImageMeta(payload.data.url);
-    if (payload.data.storageKey?.startsWith("server:")) serverUrls.set(payload.data.storageKey.slice("server:".length), payload.data.url);
-    return { ...payload.data, width: payload.data.width || meta.width, height: payload.data.height || meta.height, mimeType: payload.data.mimeType || blob.type || "image/png", bytes: payload.data.bytes || blob.size };
+    const resolvedUrl = payload.data.storageKey ? await resolveImageUrl(payload.data.storageKey, payload.data.url) : payload.data.url;
+    const meta = await readImageMeta(resolvedUrl);
+    if (payload.data.storageKey?.startsWith("server:")) serverUrls.set(payload.data.storageKey.slice("server:".length), resolvedUrl);
+    return { ...payload.data, url: resolvedUrl, width: payload.data.width || meta.width, height: payload.data.height || meta.height, mimeType: payload.data.mimeType || blob.type || "image/png", bytes: payload.data.bytes || blob.size };
 }
 
 export function clearStorageConfigCache() {
@@ -264,9 +265,10 @@ async function maybeUploadImageToServer(blob: Blob): Promise<UploadedImage | nul
         if (!canUseGlobalProvider) return null;
         throw new Error(payload?.msg || "服务端图片上传失败");
     }
-    const meta = await readImageMeta(payload.data.url);
-    if (payload.data.storageKey?.startsWith("server:")) serverUrls.set(payload.data.storageKey.slice("server:".length), payload.data.url);
-    return { ...payload.data, width: payload.data.width || meta.width, height: payload.data.height || meta.height, mimeType: payload.data.mimeType || blob.type || "image/png", bytes: payload.data.bytes || blob.size };
+    const resolvedUrl = payload.data.storageKey ? await resolveImageUrl(payload.data.storageKey, payload.data.url) : payload.data.url;
+    const meta = await readImageMeta(resolvedUrl);
+    if (payload.data.storageKey?.startsWith("server:")) serverUrls.set(payload.data.storageKey.slice("server:".length), resolvedUrl);
+    return { ...payload.data, url: resolvedUrl, width: payload.data.width || meta.width, height: payload.data.height || meta.height, mimeType: payload.data.mimeType || blob.type || "image/png", bytes: payload.data.bytes || blob.size };
 }
 
 async function uploadWebDAVImageDirect(blob: Blob, filename: string, provider: UserWebDAVStorageProvider): Promise<UploadedImage | null> {

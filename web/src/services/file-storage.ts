@@ -35,7 +35,7 @@ export async function uploadAssetMediaFile(file: File, prefix = "asset-media"): 
 
 export async function downloadRemoteMedia(url: string) {
     const response = await fetch(getProxyUrl(url));
-    if (!response.ok) throw new Error(`媒体下载失败：${response.status}`);
+    if (!response.ok) throw new Error(`media download failed: ${response.status}`);
     const blob = await response.blob();
     if (blob.type.includes("json") || blob.type.startsWith("text/")) {
         const text = await blob.text().catch(() => "");
@@ -76,8 +76,9 @@ async function uploadMediaBlobToServer(blob: Blob, filename: string): Promise<Up
     const response = await fetch("/api/v1/files", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: formData });
     const payload = (await response.json().catch(() => null)) as { code?: number; msg?: string; data?: UploadedFile } | null;
     if (!response.ok || payload?.code !== 0 || !payload.data) throw new Error(payload?.msg || "媒体同步失败");
-    const meta = payload.data.mimeType?.startsWith("video/") ? await readVideoMeta(payload.data.url) : {};
-    return { ...payload.data, bytes: payload.data.bytes || blob.size, mimeType: payload.data.mimeType || blob.type || "application/octet-stream", ...meta };
+    const resolvedUrl = payload.data.storageKey ? await resolveMediaUrl(payload.data.storageKey, payload.data.url) : payload.data.url;
+    const meta = payload.data.mimeType?.startsWith("video/") ? await readVideoMeta(resolvedUrl) : {};
+    return { ...payload.data, url: resolvedUrl, bytes: payload.data.bytes || blob.size, mimeType: payload.data.mimeType || blob.type || "application/octet-stream", ...meta };
 }
 
 async function uploadWebDAVMediaDirect(blob: Blob, filename: string, provider: UserWebDAVStorageProvider): Promise<UploadedFile | null> {
@@ -186,7 +187,7 @@ async function deleteServerMedia(storageKey: string) {
         body: JSON.stringify(provider ? { provider: toProviderPayload(provider) } : {}),
     });
     const payload = (await response.json().catch(() => null)) as { code?: number; msg?: string } | null;
-    if (!response.ok || payload?.code !== 0) throw new Error(payload?.msg || "删除服务端视频失败");
+    if (!response.ok || payload?.code !== 0) throw new Error(payload?.msg || "delete server media failed");
 }
 
 export async function deleteStoredMedia(keys: Iterable<string>) {
@@ -236,3 +237,4 @@ function readVideoMeta(url: string) {
         video.src = url;
     });
 }
+
