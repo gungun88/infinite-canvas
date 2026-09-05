@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/tigerowo/infinite-canvas/config"
 	"github.com/tigerowo/infinite-canvas/model"
 	"github.com/tigerowo/infinite-canvas/repository"
-	"github.com/google/uuid"
 )
 
 const (
@@ -47,15 +47,12 @@ func ResendVerificationEmail(email string) (VerificationResult, error) {
 	if err != nil {
 		return VerificationResult{}, err
 	}
-	result := VerificationResult{EmailVerificationRequired: smtpConfigured()}
+	if !smtpConfigured() {
+		return VerificationResult{}, safeMessageError{message: "email_not_configured"}
+	}
+	result := VerificationResult{EmailVerificationRequired: true}
 	if !ok || user.EmailVerifiedAt != "" {
 		return result, nil
-	}
-	if !smtpConfigured() {
-		user.EmailVerifiedAt = now()
-		user.UpdatedAt = now()
-		_, err = repository.SaveUser(user)
-		return result, err
 	}
 	result.VerificationEmailSent, err = issueVerificationEmail(user)
 	return result, err

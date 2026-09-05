@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/tigerowo/infinite-canvas/config"
 	"github.com/tigerowo/infinite-canvas/model"
 	"github.com/tigerowo/infinite-canvas/repository"
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -72,8 +72,14 @@ func Register(username string, password string, email string) (model.AuthSession
 	if strings.ContainsAny(username, " \t\r\n") {
 		return model.AuthSession{}, safeMessageError{message: "用户名不能包含空格"}
 	}
-	if email != "" && !strings.Contains(email, "@") {
+	if email == "" {
+		return model.AuthSession{}, safeMessageError{message: "email_required"}
+	}
+	if !strings.Contains(email, "@") {
 		return model.AuthSession{}, safeMessageError{message: "invalid_email"}
+	}
+	if !smtpConfigured() {
+		return model.AuthSession{}, safeMessageError{message: "email_not_configured"}
 	}
 	if username == "" || password == "" {
 		return model.AuthSession{}, safeMessageError{message: "用户名和密码不能为空"}
@@ -110,26 +116,15 @@ func Register(username string, password string, email string) (model.AuthSession
 	if err != nil {
 		return model.AuthSession{}, err
 	}
-	if email != "" && smtpConfigured() {
-		sent, err := issueVerificationEmail(user)
-		if err != nil {
-			return model.AuthSession{}, err
-		}
-		return model.AuthSession{
-			User:                         model.PublicUser(user),
-			EmailVerificationRequired:   true,
-			VerificationEmailSent:       sent,
-		}, nil
+	sent, err := issueVerificationEmail(user)
+	if err != nil {
+		return model.AuthSession{}, err
 	}
-	if email != "" && user.EmailVerifiedAt == "" {
-		user.EmailVerifiedAt = now()
-		user.UpdatedAt = now()
-		user, err = repository.SaveUser(user)
-		if err != nil {
-			return model.AuthSession{}, err
-		}
-	}
-	return newSession(user)
+	return model.AuthSession{
+		User:                      model.PublicUser(user),
+		EmailVerificationRequired: true,
+		VerificationEmailSent:     sent,
+	}, nil
 }
 
 func Login(username string, password string) (model.AuthSession, error) {
@@ -147,12 +142,12 @@ func Login(username string, password string) (model.AuthSession, error) {
 	if user.Status == model.UserStatusBan {
 		return model.AuthSession{}, safeMessageError{message: "账号已被禁用"}
 	}
-	if user.Email != "" && user.EmailVerifiedAt == "" && smtpConfigured() {
+	if user.Email != "" && user.EmailVerifiedAt == "" {
+		if !smtpConfigured() {
+			return model.AuthSession{}, safeMessageError{message: "email_not_configured"}
+		}
 		_, _ = issueVerificationEmail(user)
 		return model.AuthSession{}, safeMessageError{message: "email_not_verified"}
-	}
-	if user.Email != "" && user.EmailVerifiedAt == "" {
-		user.EmailVerifiedAt = now()
 	}
 	normalizeUserDefaults(&user)
 	user.LastLoginAt = now()
