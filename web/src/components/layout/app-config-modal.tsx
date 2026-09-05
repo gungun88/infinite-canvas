@@ -167,6 +167,10 @@ export function AppConfigModal() {
 
     const refreshModels = async () => {
         if (effectiveMode === "remote") return;
+        if (!token) {
+            message.warning("请先登录后再拉取模型列表");
+            return;
+        }
         const channels = normalizeLocalChannels(config);
         const configuredChannels = channels.filter((channel) => channel.baseUrl.trim() && channel.apiKey.trim());
         const skippedChannels = channels.filter((channel) => !channel.baseUrl.trim() || !channel.apiKey.trim());
@@ -250,6 +254,10 @@ export function AppConfigModal() {
 
     const fetchLocalModelList = async () => {
         if (!modelSelectChannel) return;
+        if (!token) {
+            message.warning("请先登录后再拉取模型列表");
+            return;
+        }
         if (!modelSelectChannel.baseUrl.trim() || !modelSelectChannel.apiKey.trim()) {
             message.error("请先填写该渠道的 Base URL 和 API Key");
             return;

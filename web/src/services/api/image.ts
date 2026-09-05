@@ -6,6 +6,7 @@ import { isKIESeedreamLayerDecompositionModel } from "@/lib/kie-models";
 import { isMimoChannel, mimoModels } from "@/lib/mimo-tts";
 import { dataUrlToGeminiInlineData, geminiActionUrl, geminiDirectHeaders, geminiErrorMessage, isGeminiConfig, normalizeGeminiBaseUrl } from "@/lib/gemini";
 import { imageToDataUrl, resolveImageUrl } from "@/services/image-storage";
+import { requireAiLogin } from "@/services/api/ai-auth";
 import { apiPost } from "@/services/api/request";
 import { buildApiUrl, channelIdForActiveModel, channelProtocolForConfig, directAIProviderForConfig, localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
@@ -516,8 +517,7 @@ function withPromptGuard(config: AiConfig, prompt: string) {
 }
 
 function usesAccountProxy(config: AiConfig) {
-    const token = useUserStore.getState().token;
-    return config.channelMode === "remote" || (config.channelMode === "local" && Boolean(token));
+    return config.channelMode === "remote" || config.channelMode === "local";
 }
 
 export function aiApiUrl(config: AiConfig, path: string) {
@@ -527,8 +527,7 @@ export function aiApiUrl(config: AiConfig, path: string) {
 }
 
 export function aiHeaders(config: AiConfig, contentType?: string) {
-    const token = useUserStore.getState().token;
-    if (config.channelMode === "remote" && !token) throw new Error("请先登录后再使用云端渠道");
+    const token = requireAiLogin(config.channelMode);
     if (config.channelMode === "remote") {
         return {
             Authorization: `Bearer ${token}`,
@@ -536,17 +535,10 @@ export function aiHeaders(config: AiConfig, contentType?: string) {
             ...(contentType ? { "Content-Type": contentType } : {}),
         };
     }
-    if (token) {
-        const userChannelId = channelIdForActiveModel(config);
-        return {
-            Authorization: `Bearer ${token}`,
-            ...(userChannelId ? { "X-User-Model-Channel-ID": userChannelId } : {}),
-            ...(contentType ? { "Content-Type": contentType } : {}),
-        };
-    }
-    if (isGeminiConfig(config)) return geminiDirectHeaders(config);
+    const userChannelId = channelIdForActiveModel(config);
     return {
-        Authorization: `Bearer ${localChannelForActiveModel(config)?.apiKey || config.apiKey}`,
+        Authorization: `Bearer ${token}`,
+        ...(userChannelId ? { "X-User-Model-Channel-ID": userChannelId } : {}),
         ...(contentType ? { "Content-Type": contentType } : {}),
     };
 }
@@ -1200,27 +1192,9 @@ export async function requestImageQuestion(config: AiConfig, messages: ChatCompl
 export async function fetchImageModels(config: AiConfig) {
     if (config.channelMode === "remote") return config.models;
     const channel = localChannelForActiveModel(config);
-    const token = useUserStore.getState().token;
-    if (token && channel) {
-        return apiPost<string[]>("/api/v1/models", { channel }, token);
-    }
-    if (channel?.protocol === "gemini") return fetchGeminiModels(channel.baseUrl, channel.apiKey);
-    if (isMiniMaxChannel(channel)) return [...miniMaxModels];
-    if (isMimoChannel(channel || { baseUrl: config.baseUrl })) return [...mimoModels];
-    try {
-        const response = await axios.get<{ data?: Array<{ id?: string }>; error?: { message?: string } }>(buildApiUrl(config.baseUrl, "/models"), {
-            headers: {
-                Authorization: `Bearer ${config.apiKey}`,
-            },
-            timeout: IMAGE_REQUEST_TIMEOUT_SECONDS * 1000,
-        });
-        return (response.data.data || [])
-            .map((model) => model.id)
-            .filter((id): id is string => Boolean(id))
-            .sort((a, b) => a.localeCompare(b));
-    } catch (error) {
-        throw new Error(readAxiosError(error, "读取模型失败"));
-    }
+    const token = requireAiLogin(config.channelMode);
+    if (!channel) throw new Error("请先配置本地渠道");
+    return apiPost<string[]>("/api/v1/models", { channel }, token);
 }
 
 async function requestGeminiImageSingle(config: AiConfig, prompt: string, references: ReferenceImage[], params: ImageRequestParams): Promise<GeneratedImage[]> {

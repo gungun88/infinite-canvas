@@ -8,6 +8,7 @@ import { boolConfig, isSeedanceVideoConfig, normalizeSeedanceDuration, normalize
 import { isKIEGrokVideoModel, isKIEKlingV3Config, kieKlingOmniVariant } from "@/components/video-settings-panel";
 import { isAgnesVideoV25Model, isCogVideoX3Model, modelKey, normalizeCogVideoX3Duration, supportsVideoAudioGeneration } from "@/lib/video-model-capabilities";
 import { resolveMediaUrl, uploadMediaFile } from "@/services/file-storage";
+import { requireAiLogin } from "@/services/api/ai-auth";
 import { imageToDataUrl, resolveImageUrl } from "@/services/image-storage";
 import { buildApiUrl, channelIdForActiveModel, channelProtocolForConfig, directAIProviderForConfig, localChannelForActiveModel, type AiConfig, type VideoElementReference } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
@@ -34,8 +35,7 @@ export class VideoRequestError extends Error {
 }
 
 function usesAccountProxy(config: AiConfig) {
-    const token = useUserStore.getState().token;
-    return config.channelMode === "remote" || (config.channelMode === "local" && Boolean(token));
+    return config.channelMode === "remote" || config.channelMode === "local";
 }
 
 function aiApiUrl(config: AiConfig, path: string) {
@@ -77,12 +77,9 @@ function agnesBaseUrl(baseUrl: string) {
 }
 
 function aiHeaders(config: AiConfig) {
-    const token = useUserStore.getState().token;
-    if (config.channelMode === "remote" && !token) throw new Error("请先登录后再使用云端渠道");
+    const token = requireAiLogin(config.channelMode);
     if (config.channelMode === "remote") return { Authorization: `Bearer ${token}`, ...(channelIdForActiveModel(config) ? { "X-Model-Channel-ID": channelIdForActiveModel(config) } : {}) };
-    if (token) return { Authorization: `Bearer ${token}`, ...(channelIdForActiveModel(config) ? { "X-User-Model-Channel-ID": channelIdForActiveModel(config) } : {}) };
-    if (isGeminiConfig(config)) return geminiDirectHeaders(config);
-    return { Authorization: `Bearer ${localChannelForActiveModel(config)?.apiKey || config.apiKey}` };
+    return { Authorization: `Bearer ${token}`, ...(channelIdForActiveModel(config) ? { "X-User-Model-Channel-ID": channelIdForActiveModel(config) } : {}) };
 }
 
 function refreshRemoteUser(config: AiConfig) {

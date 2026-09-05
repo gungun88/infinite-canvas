@@ -1,4 +1,5 @@
 import { mimoTextModels } from "@/lib/mimo-tts";
+import { requireAiLogin } from "@/services/api/ai-auth";
 import { dataUrlToGeminiInlineData, geminiActionUrl, geminiDirectHeaders, geminiErrorMessage, isGeminiConfig } from "@/lib/gemini";
 import { aiApiUrl, aiHeaders, refreshRemoteUser } from "@/services/api/image";
 import { imageToDataUrl } from "@/services/image-storage";
@@ -106,6 +107,7 @@ function applyCanvasAgentReasoning(body: Record<string, unknown>, config: Canvas
 }
 
 export async function requestCanvasAgentTurn(input: RequestCanvasAgentTurnInput): Promise<CanvasAgentModelTurn> {
+    requireAiLogin(input.config.channelMode);
     const requestConfig = {
         ...input.config,
         model: input.config.textModel || input.config.model,

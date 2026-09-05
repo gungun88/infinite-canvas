@@ -7,6 +7,7 @@ import { isMimoPresetTtsModel, isMimoTtsModel, isMimoVoiceCloneModel, isMimoVoic
 import { geminiActionUrl, geminiDirectHeaders, geminiErrorMessage, isGeminiConfig, isGeminiTtsModel } from "@/lib/gemini";
 import { geminiPcmBase64ToWav, normalizeGeminiTtsVoice } from "@/lib/gemini-tts";
 import { resolveMediaUrl, uploadMediaFile, type UploadedFile } from "@/services/file-storage";
+import { requireAiLogin } from "@/services/api/ai-auth";
 import { buildApiUrl, channelIdForActiveModel, localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
 import type { ReferenceAudio } from "@/types/media";
@@ -35,8 +36,7 @@ type GeminiAudioResponse = { candidates?: Array<{ content?: { parts?: Array<{ in
 const grokTtsVoiceRequests = new Map<string, Promise<GrokTtsVoice[]>>();
 
 function usesAccountProxy(config: AiConfig) {
-    const token = useUserStore.getState().token;
-    return config.channelMode === "remote" || (config.channelMode === "local" && Boolean(token));
+    return config.channelMode === "remote" || config.channelMode === "local";
 }
 
 function aiApiUrl(config: AiConfig, path: string) {
@@ -46,24 +46,17 @@ function aiApiUrl(config: AiConfig, path: string) {
 }
 
 function aiHeaders(config: AiConfig) {
-    const token = useUserStore.getState().token;
+    const token = requireAiLogin(config.channelMode);
     if (config.channelMode === "remote") {
         return {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            Authorization: `Bearer ${token}`,
             ...(channelIdForActiveModel(config) ? { "X-Model-Channel-ID": channelIdForActiveModel(config) } : {}),
             "Content-Type": "application/json",
         };
     }
-    if (token) {
-        return {
-            Authorization: `Bearer ${token}`,
-            ...(channelIdForActiveModel(config) ? { "X-User-Model-Channel-ID": channelIdForActiveModel(config) } : {}),
-            "Content-Type": "application/json",
-        };
-    }
-    if (isGeminiConfig(config)) return geminiDirectHeaders(config);
     return {
-        Authorization: `Bearer ${localChannelForActiveModel(config)?.apiKey || config.apiKey}`,
+        Authorization: `Bearer ${token}`,
+        ...(channelIdForActiveModel(config) ? { "X-User-Model-Channel-ID": channelIdForActiveModel(config) } : {}),
         "Content-Type": "application/json",
     };
 }
@@ -72,7 +65,8 @@ function refreshRemoteUser(config: AiConfig) {
     if (usesAccountProxy(config)) void useUserStore.getState().hydrateUser();
 }
 
-export function fetchGrokTtsVoices(config: AiConfig, model: string) {
+export async function fetchGrokTtsVoices(config: AiConfig, model: string) {
+    requireAiLogin(config.channelMode);
     const requestConfig = { ...config, model, audioModel: model };
     const requestKey = `${aiApiUrl(requestConfig, "/tts/voices")}|${channelIdForActiveModel(requestConfig)}|${model}`;
     const existing = grokTtsVoiceRequests.get(requestKey);
@@ -88,6 +82,7 @@ export function fetchGrokTtsVoices(config: AiConfig, model: string) {
 export async function requestAudioGeneration(config: AiConfig, prompt: string, referenceAudio?: ReferenceAudio): Promise<Blob> {
     const model = (config.model || config.audioModel).trim();
     assertAudioConfig(config, model);
+    requireAiLogin(config.channelMode);
 
     try {
         if (isGeminiTtsModel(model) && isGeminiConfig(config, model)) {

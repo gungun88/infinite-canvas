@@ -1,4 +1,5 @@
 import { apiPost } from "@/services/api/request";
+import { requireAiLogin } from "@/services/api/ai-auth";
 import { buildApiUrl, localChannelForActiveModel, type AiConfig, type DirectAIProvider } from "@/stores/use-config-store";
 
 type DirectRequestBody = Record<string, unknown> | FormData;
@@ -47,6 +48,7 @@ export async function createDirectVideoTask(config: AiConfig, provider: DirectAI
 }
 
 export async function pollDirectVideoTask(config: AiConfig, provider: DirectAIProvider, pollId: string): Promise<DirectVideoResponse> {
+    requireAiLogin(config.channelMode);
     const channel = requireDirectChannel(config);
     const payload = await requestDirectJSON(directPollURL(config, provider, pollId), channel.apiKey, "", undefined);
     if (provider === "kie") {
@@ -79,6 +81,7 @@ export async function pollDirectVideoTask(config: AiConfig, provider: DirectAIPr
 }
 
 async function prepareDirectRequest(config: AiConfig, provider: DirectAIProvider, endpoint: "/images/generations" | "/images/edits" | "/videos", body: DirectRequestBody) {
+    requireAiLogin(config.channelMode);
     const channel = requireDirectChannel(config);
     const serialized = await serializeDirectBody(body);
     assertSafeDirectBody(serialized.body);
