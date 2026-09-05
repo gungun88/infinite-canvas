@@ -80,11 +80,13 @@ function LoginContent() {
         if (!token || handledToken.current === token) return;
         handledToken.current = token;
         cleanLoginURL(redirect);
-        const sessionRevision = useUserStore.getState().sessionRevision;
+        const initialSession = useUserStore.getState();
+        const sessionRevision = initialSession.sessionRevision;
+        const previousToken = initialSession.token;
         void fetchCurrentUser(token)
             .then((user) => {
                 const current = useUserStore.getState();
-                if (current.sessionRevision !== sessionRevision || (current.token && current.token !== token)) return;
+                if (current.sessionRevision !== sessionRevision || current.token !== previousToken) return;
                 setSession(token, user);
                 message.success("登录成功");
                 router.replace(redirect);
