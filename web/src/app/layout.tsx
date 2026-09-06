@@ -9,6 +9,11 @@ import React from "react";
 export const metadata: Metadata = {
     title: "无限画布",
     description: "一个无限画布创作工具",
+    icons: {
+        icon: "/logo.svg?v=2",
+        shortcut: "/logo.svg?v=2",
+        apple: "/logo.svg?v=2",
+    },
 };
 
 export default function RootLayout({
