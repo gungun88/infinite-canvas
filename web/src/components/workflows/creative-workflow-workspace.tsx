@@ -948,25 +948,25 @@ export function CreativeWorkflowWorkspace({
                         </div>
                         <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">{embedded ? "选择模板并启动任务，结果会写入生图历史。" : "把固定提示词和参数沉淀成模板，每次只填写变量即可批量复用。"}</p>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                        <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
+                    <div className="flex w-full min-w-0 flex-col gap-2">
+                        <Input.Search allowClear placeholder="搜索名称、分类、描述" className="w-full" value={query} onChange={(event) => setQuery(event.target.value)} />
+                        <div className="flex flex-wrap items-center gap-2">
                             <Select
                                 className="w-36 shrink-0"
                                 value={workflowCategory}
                                 options={[{ value: "all", label: "全部分类" }, ...workflowCategories.map((category) => ({ value: category, label: category }))]}
                                 onChange={setWorkflowCategory}
                             />
-                            <Input.Search allowClear placeholder="搜索名称、分类、描述" className="min-w-0 flex-1 sm:w-72 sm:flex-none" value={query} onChange={(event) => setQuery(event.target.value)} />
-                        </div>
-                        <Button icon={<Bot className="size-4" />} onClick={() => setAgentOpen(true)}>
+                            <Button icon={<Bot className="size-4" />} onClick={() => setAgentOpen(true)}>
                             AI 创建
-                        </Button>
-                        <Button icon={<Layers3 className="size-4" />} onClick={() => setEditingWorkflow(createBlankWorkflow(effectiveConfig, "multi_image_series"))}>
+                            </Button>
+                            <Button icon={<Layers3 className="size-4" />} onClick={() => setEditingWorkflow(createBlankWorkflow(effectiveConfig, "multi_image_series"))}>
                             新建多图
-                        </Button>
-                        <Button type="primary" icon={<Plus className="size-4" />} onClick={() => setEditingWorkflow(createBlankWorkflow(effectiveConfig))}>
+                            </Button>
+                            <Button type="primary" icon={<Plus className="size-4" />} onClick={() => setEditingWorkflow(createBlankWorkflow(effectiveConfig))}>
                             新建工作流
-                        </Button>
+                            </Button>
+                        </div>
                     </div>
                 </section>
 

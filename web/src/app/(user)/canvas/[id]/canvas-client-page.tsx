@@ -303,6 +303,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     const { message } = App.useApp();
     const router = useRouter();
     const containerRef = useRef<HTMLDivElement>(null);
+    const imageInputSingleRef = useRef<HTMLInputElement>(null);
     const imageInputMultipleRef = useRef<HTMLInputElement>(null);
     const assetInsertPositionRef = useRef<Position | null>(null);
     const draggedAssetPayloadRef = useRef<InsertAssetPayload | null>(null);
@@ -2468,7 +2469,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
 
     const handleUploadRequest = useCallback((nodeId?: string, position?: Position) => {
         uploadTargetRef.current = { nodeId, position };
-        imageInputMultipleRef.current?.click();
+        (nodeId ? imageInputSingleRef : imageInputMultipleRef).current?.click();
     }, []);
 
     const handleImageInputChange = useCallback(
@@ -4251,6 +4252,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                         </button>
                     </div>
                 ) : null}
+                <input ref={imageInputSingleRef} type="file" accept="image/*,video/*,audio/mpeg,audio/wav,audio/x-wav,.mp3,.wav" className="hidden" onChange={handleImageInputChange} />
                 <input ref={imageInputMultipleRef} type="file" accept="image/*,video/*,audio/mpeg,audio/wav,audio/x-wav,.mp3,.wav" multiple className="hidden" onChange={handleImageInputChange} />
 
                 <CanvasNodeInfoModal node={infoNode} open={Boolean(infoNode)} onClose={() => setInfoNodeId(null)} />
