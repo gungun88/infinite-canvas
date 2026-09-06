@@ -6,7 +6,7 @@ import { persist } from "zustand/middleware";
 
 import { apiGet } from "@/services/api/request";
 import type { AdminPublicSettings } from "@/services/api/admin";
-import { modelChannelDefaultBaseUrls, nextChannelName } from "@/lib/model-channel";
+import { modelChannelDefaultBaseUrls } from "@/lib/model-channel";
 import { useUserStore } from "@/stores/use-user-store";
 
 export type LocalModelChannel = {
@@ -91,6 +91,15 @@ export type AiConfig = {
     textChannelId: string;
     audioChannelId: string;
 };
+
+function nextLocalChannelName(channels: Array<{ name?: string | null }>) {
+    const maxIndex = channels.reduce((max, channel) => {
+        const match = (channel.name || "").trim().match(/^娓犻亾(\d+)$/);
+        const index = match ? Number(match[1]) : 0;
+        return index > max ? index : max;
+    }, 0);
+    return `娓犻亾${maxIndex ? maxIndex + 1 : channels.length + 1}`;
+}
 
 export const CONFIG_STORE_KEY = "infinite-canvas:ai_config_store";
 export type ModelCapability = "image" | "video" | "text" | "audio";
@@ -513,7 +522,7 @@ export function normalizeLocalChannels(config: Partial<AiConfig>): LocalModelCha
         models: Array.isArray(channel.models) ? channel.models.filter(Boolean) : [],
     }));
     if (!normalized.length) {
-        normalized.push({ id: "local-default", protocol: "doingai", name: nextChannelName([]), baseUrl: modelChannelDefaultBaseUrls.doingai, apiKey: config.apiKey || "", models: Array.isArray(config.models) ? config.models.filter(Boolean) : [] });
+        normalized.push({ id: "local-default", protocol: "doingai", name: nextLocalChannelName([]), baseUrl: modelChannelDefaultBaseUrls.doingai, apiKey: config.apiKey || "", models: Array.isArray(config.models) ? config.models.filter(Boolean) : [] });
     }
     return normalized;
 }
