@@ -1,4 +1,13 @@
-import { FileText, ImagePlus, Images, Maximize2, Video } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { FileText, ImagePlus, Images, Layers3, Maximize2, Video, WandSparkles } from "lucide-react";
+
+export type NavigationTool = {
+    label: string;
+    icon: LucideIcon;
+    slug?: string;
+    href?: string;
+    activePrefix?: string;
+};
 
 export const navigationTools = [
     {
@@ -17,6 +26,17 @@ export const navigationTools = [
         icon: Video,
     },
     {
+        slug: "workflows",
+        label: "工作流",
+        icon: WandSparkles,
+    },
+    {
+        href: "/director/index.html",
+        activePrefix: "/director",
+        label: "导演台",
+        icon: Layers3,
+    },
+    {
         slug: "prompts",
         label: "提示词库",
         icon: FileText,
@@ -26,6 +46,6 @@ export const navigationTools = [
         label: "我的素材",
         icon: Images,
     },
-] as const;
+] as const satisfies readonly NavigationTool[];
 
-export type NavigationToolSlug = (typeof navigationTools)[number]["slug"];
+export type NavigationToolSlug = Extract<(typeof navigationTools)[number], { slug: string }>["slug"];

@@ -103,9 +103,9 @@ export default function IndexPage() {
     };
 
     const onUploadInputChange = (event: ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
+        const files = Array.from(event.target.files || []);
         event.target.value = "";
-        if (file) void uploadFile(file);
+        if (files.length) void Promise.all(files.map(uploadFile));
     };
 
     const submit = (nextPrompt = prompt, referenceIds = pendingAssets.map((asset) => asset.nodeId)) => {
@@ -156,7 +156,7 @@ export default function IndexPage() {
                             onPasteImage={(file) => void uploadFile(file)}
                         />
                     </div>
-                    <input ref={uploadInputRef} hidden type="file" accept="image/*,video/*,audio/*" onChange={onUploadInputChange} />
+                    <input ref={uploadInputRef} hidden type="file" accept="image/*,video/*,audio/*" multiple onChange={onUploadInputChange} />
                 </section>
 
                 <section className="relative mx-auto mb-20 max-w-6xl border-t border-stone-200 pt-12 dark:border-stone-800">

@@ -41,10 +41,9 @@ export function ChannelModelSelectorModal({ models, sourceModels = [], onCancel,
                 message.warning("上游未返回模型列表，请手动输入模型名称");
                 return;
             }
-            const current = uniqueModels(selected);
-            setExisting(current);
+            setExisting([]);
             setSource(uniqueModels(fetchedModels));
-            setSelected(uniqueModels([...fetchedModels, ...current]));
+            setSelected(uniqueModels(fetchedModels));
             setKeyword("");
             setNewModel("");
             setActiveTab("new");

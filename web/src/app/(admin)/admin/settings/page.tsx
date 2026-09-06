@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { EditorView } from "@uiw/react-codemirror";
 
 import { ChannelModelSelectorModal } from "@/components/channel-model-selector-modal";
-import { modelChannelApiKeyUrls, modelChannelDefaultBaseUrls } from "@/lib/model-channel";
+import { modelChannelApiKeyUrls, modelChannelDefaultBaseUrls, nextChannelName } from "@/lib/model-channel";
 import { fetchAdminSettings, fetchChannelModels, measureAdminStorageProvider, saveAdminSettings, testChannelModel, type AdminModelChannel, type AdminModelCost, type AdminSettings, type AdminStorageProvider } from "@/services/api/admin";
 import { useUserStore } from "@/stores/use-user-store";
 
@@ -46,7 +46,7 @@ const emptySettings: AdminSettings = {
     },
     private: { channels: [], promptSync: { enabled: true, cron: "0 0 * * *" }, aiLog: { localDirectReportEnabled: false, cleanup: { enabled: false, retentionDays: 14, cron: "0 3 * * *" } }, auth: { linuxDo: { clientId: "", clientSecret: "" } }, storage: { mode: "local_indexeddb", allowUserProvider: false, allowUserGlobalProvider: true, providers: [], roundRobinCursor: 0, capacityCheck: { enabled: false, cron: "0 */6 * * *" }, capacityLimitBytes: 9 * 1024 * 1024 * 1024 } },
 };
-const emptyChannel: AdminModelChannel = { id: "", protocol: "openai", name: "", baseUrl: modelChannelDefaultBaseUrls.openai, apiKey: "", models: [], weight: 1, timeout: 600, enabled: true, remark: "" };
+const emptyChannel: AdminModelChannel = { id: "", protocol: "doingai", name: "", baseUrl: modelChannelDefaultBaseUrls.doingai, apiKey: "", models: [], weight: 1, timeout: 600, enabled: true, remark: "" };
 const emptyS3StorageProvider: AdminStorageProvider = { id: "", name: "", type: "s3", endpoint: "", region: "auto", bucket: "", accessKeyId: "", secretAccessKey: "", publicBaseUrl: "", pathPrefix: "canvas", username: "", password: "", weight: 1, enabled: true, ownerUserId: "", capacityBytes: 0, capacityCheckedAt: "", capacityExceeded: false };
 const emptyWebDAVStorageProvider: AdminStorageProvider = { ...emptyS3StorageProvider, name: "", type: "webdav", region: "" };
 
@@ -176,7 +176,7 @@ export default function AdminSettingsPage() {
     const openChannelDrawer = (index: number | null) => {
         setEditingChannelIndex(index);
         setIsChannelDrawerOpen(true);
-        const channel = index === null ? emptyChannel : normalizeChannel(channels[index]);
+        const channel = index === null ? { ...emptyChannel, name: nextChannelName(channels) } : normalizeChannel(channels[index]);
         channelForm.setFieldsValue(channel);
         rememberModels(channel.models);
     };
@@ -1086,9 +1086,9 @@ function newAdminStorageProvider(type: AdminStorageProvider["type"], providers: 
 function normalizeChannel(item: Partial<AdminModelChannel> = {}): AdminModelChannel {
     return {
         id: item.id || "",
-        protocol: item.protocol || "openai",
-        name: item.name || "",
-        baseUrl: item.baseUrl || "",
+        protocol: item.protocol || "doingai",
+        name: item.name?.trim() || "",
+        baseUrl: item.baseUrl || modelChannelDefaultBaseUrls.doingai,
         apiKey: item.apiKey || "",
         models: item.models || [],
         weight: Math.max(1, Number(item.weight) || 1),

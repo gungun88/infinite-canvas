@@ -15,3 +15,12 @@ export const modelChannelDefaultBaseUrls: Record<ModelChannelProtocol, string> =
 export const modelChannelApiKeyUrls: Partial<Record<ModelChannelProtocol, string>> = {
     doingai: "https://ai.doingfb.com/keys",
 };
+
+export function nextChannelName(channels: Array<{ name?: string | null }>) {
+    const maxIndex = channels.reduce((max, channel) => {
+        const match = (channel.name || "").trim().match(/^渠道(\d+)$/);
+        const index = match ? Number(match[1]) : 0;
+        return index > max ? index : max;
+    }, 0);
+    return `渠道${maxIndex ? maxIndex + 1 : channels.length + 1}`;
+}

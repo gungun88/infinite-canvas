@@ -15,7 +15,7 @@ import { grokTtsFormatOptions, grokTtsLanguageOptions, isGrok2APITtsConfig, norm
 import { isGeminiConfig, isGeminiTtsModel } from "@/lib/gemini";
 import { geminiTtsVoiceOptions, normalizeGeminiTtsVoice } from "@/lib/gemini-tts";
 import { isMimoPresetTtsModel, isMimoTtsModel, isMimoVoiceCloneModel, isMimoVoiceDesignModel, mimoTtsFormatOptions, mimoTtsVoiceOptions } from "@/lib/mimo-tts";
-import { modelChannelApiKeyUrls, modelChannelDefaultBaseUrls } from "@/lib/model-channel";
+import { modelChannelApiKeyUrls, modelChannelDefaultBaseUrls, nextChannelName } from "@/lib/model-channel";
 import { filterChannelModelsByCapability, normalizeLocalChannels, useConfigStore, useEffectiveConfig, type AiConfig, type LocalModelChannel, type ModelCapability } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
 
@@ -235,7 +235,8 @@ export function AppConfigModal() {
     };
 
     const addLocalChannel = () => {
-        updateLocalChannels([...normalizeLocalChannels(config), { id: "local-" + Date.now(), protocol: "openai", name: "新渠道", baseUrl: modelChannelDefaultBaseUrls.openai, apiKey: "", models: [] }]);
+        const channels = normalizeLocalChannels(config);
+        updateLocalChannels([...channels, { id: "local-" + Date.now(), protocol: "doingai", name: nextChannelName(channels), baseUrl: modelChannelDefaultBaseUrls.doingai, apiKey: "", models: [] }]);
     };
 
     const removeLocalChannel = (id: string) => {
