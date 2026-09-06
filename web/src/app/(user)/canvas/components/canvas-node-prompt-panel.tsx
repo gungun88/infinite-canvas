@@ -86,7 +86,7 @@ export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfi
                 onSubmit={submit}
                 className="thin-scrollbar h-40 w-full resize-none rounded-xl px-3 py-2 text-sm leading-5 outline-none"
                 style={{ background: "transparent", color: theme.node.text }}
-                placeholder={isPanorama ? "描述想生成的全景，或上传/连接图片作为参考" : promptPlaceholder(mode, hasImageContent, hasTextContent)}
+                placeholder={isPanorama ? "描述想生成的全景，输入 @ 可引用已连接资源，或上传/连接图片作为参考" : promptPlaceholder(mode, hasImageContent, hasTextContent)}
             />
 
             <div className="mt-2 flex min-w-0 items-center justify-between gap-2">
@@ -146,7 +146,7 @@ export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfi
                         onChange={updatePrompt}
                         className="thin-scrollbar h-[52dvh] min-h-80 w-full cursor-text overflow-y-auto rounded-2xl border p-4 text-[15px] leading-6 outline-none"
                         style={{ background: "transparent", borderColor: theme.toolbar.border, color: theme.node.text }}
-                        placeholder={isPanorama ? "描述想生成的全景，或上传/连接图片作为参考" : promptPlaceholder(mode, hasImageContent, hasTextContent)}
+                        placeholder={isPanorama ? "描述想生成的全景，输入 @ 可引用已连接资源，或上传/连接图片作为参考" : promptPlaceholder(mode, hasImageContent, hasTextContent)}
                     />
                 </div>
             </Modal>
@@ -205,10 +205,10 @@ function buildNodeConfig(globalConfig: AiConfig, node: CanvasNodeData, mode: Can
 }
 
 function promptPlaceholder(mode: CanvasNodeGenerationMode, hasImageContent: boolean, hasTextContent: boolean) {
-    if (mode === "video") return "描述要生成的视频内容";
-    if (mode === "audio") return "描述要生成的音频内容";
-    if (mode === "image") return hasImageContent ? "请输入你想要把这张图修改成什么" : "描述要生成的图片内容";
-    return hasTextContent ? "请输入你想要将本段文本修改成什么" : "请输入你想要生成的文本内容";
+    if (mode === "video") return "描述要生成的视频内容，输入 @ 可引用已连接资源";
+    if (mode === "audio") return "描述要生成的音频内容，输入 @ 可引用已连接资源";
+    if (mode === "image") return hasImageContent ? "请输入你想要把这张图修改成什么，输入 @ 可引用已连接资源" : "描述要生成的图片内容，输入 @ 可引用已连接资源";
+    return hasTextContent ? "请输入你想要将本段文本修改成什么，输入 @ 可引用已连接资源" : "请输入你想要生成的文本内容，输入 @ 可引用已连接资源";
 }
 
 function videoConfigPatch(key: keyof AiConfig, value: string) {

@@ -103,7 +103,12 @@ export function CanvasPromptChipInput({ value, references, onChange, onReference
     };
 
     const syncMention = () => {
-        const text = textBeforeCaret();
+        const editor = editorRef.current;
+        if (!editor) {
+            closeMention();
+            return;
+        }
+        const text = textBeforeCaret(editor);
         const match = /@([^\s@]*)$/.exec(text);
         if (!match || !activeReferences.length) {
             closeMention();
@@ -111,7 +116,7 @@ export function CanvasPromptChipInput({ value, references, onChange, onReference
         }
         setMention({
             query: match[1] || "",
-            rect: getCaretRect(),
+            rect: getCaretRect(editor),
         });
         setActiveIndex(0);
     };
@@ -551,7 +556,9 @@ function removeActiveMention() {
     const selection = window.getSelection();
     if (!selection?.rangeCount) return;
     const range = selection.getRangeAt(0);
-    const text = textBeforeCaret();
+    const editor = closestPromptEditor(range.startContainer);
+    if (!editor) return;
+    const text = textBeforeCaret(editor);
     const match = /@([^\s@]*)$/.exec(text);
     if (!match) return;
     range.setStart(range.startContainer, Math.max(0, range.startOffset - (match[1] || "").length - 1));
@@ -599,30 +606,51 @@ function findReferenceSibling(node: Node, previous: boolean, includeSelf = false
     return current instanceof HTMLElement && (current.dataset.refLabel || current.dataset.skillId) ? current : null;
 }
 
-function textBeforeCaret() {
+function textBeforeCaret(editor: HTMLElement) {
     const selection = window.getSelection();
-    if (!selection?.rangeCount) return "";
+    if (!selection?.rangeCount || !selection.isCollapsed) return "";
     const range = selection.getRangeAt(0).cloneRange();
-    const editor = closestPromptEditor(range.startContainer);
-    if (!editor) return "";
+    if (!editor.contains(range.startContainer)) return "";
     range.setStart(editor, 0);
     return range.toString();
 }
 
-function getCaretRect(): DOMRect | null {
+function getCaretRect(editor: HTMLElement): DOMRect | null {
     const selection = window.getSelection();
-    if (!selection?.rangeCount) return null;
+    if (!selection?.rangeCount || !selection.isCollapsed) return null;
     const range = selection.getRangeAt(0).cloneRange();
+    if (!editor.contains(range.startContainer)) return null;
+    const editorRect = editor.getBoundingClientRect();
     range.collapse(true);
     const rect = range.getBoundingClientRect();
-    if (rect.width || rect.height || rect.left || rect.top) return rect;
-    const editor = closestPromptEditor(range.startContainer);
-    return editor?.getBoundingClientRect() || null;
+    if (isUsableCaretRect(rect, editorRect)) return rect;
+
+    const marker = document.createElement("span");
+    marker.textContent = "\u200b";
+    marker.style.display = "inline-block";
+    marker.style.width = "0";
+    range.insertNode(marker);
+    const markerRect = marker.getBoundingClientRect();
+    const parent = marker.parentElement;
+    marker.remove();
+    parent?.normalize();
+    return isUsableCaretRect(markerRect, editorRect) ? markerRect : editorRect;
 }
 
 function closestPromptEditor(node: Node) {
     const element = node instanceof Element ? node : node.parentElement;
-    return element?.closest("[contenteditable='true']") || null;
+    return element?.closest("[contenteditable='true']") as HTMLElement | null;
+}
+
+function isUsableCaretRect(rect: DOMRect, editorRect: DOMRect) {
+    const margin = 24;
+    return Number.isFinite(rect.left)
+        && Number.isFinite(rect.top)
+        && Boolean(rect.width || rect.height || rect.left || rect.top)
+        && rect.left >= editorRect.left - margin
+        && rect.left <= editorRect.right + margin
+        && rect.top >= editorRect.top - margin
+        && rect.top <= editorRect.bottom + margin;
 }
 
 function placeCaretAtEnd(element: HTMLElement) {

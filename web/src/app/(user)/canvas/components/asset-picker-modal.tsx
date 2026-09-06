@@ -193,7 +193,7 @@ function MyAssetsTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => 
     const [createUrl, setCreateUrl] = useState("");
     const [saving, setSaving] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
     const filtered = useMemo(() => {
         const query = keyword.trim().toLowerCase();
@@ -228,7 +228,7 @@ function MyAssetsTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => 
         setCreateTitle("");
         setCreateText("");
         setCreateUrl("");
-        setSelectedFile(null);
+        setSelectedFiles([]);
         if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
@@ -240,6 +240,7 @@ function MyAssetsTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => 
         }
         setSaving(true);
         try {
+            const titleForFile = (file: File) => selectedFiles.length > 1 ? `${title} - ${file.name}` : title;
             if (createKind === "text") {
                 const content = createText.trim();
                 if (!content) {
@@ -248,49 +249,86 @@ function MyAssetsTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => 
                 }
                 addAsset({ kind: "text", title, coverUrl: "", tags: [], source: "素材选择器", data: { content } });
             } else if (createKind === "image") {
-                if (!selectedFile && !createUrl.trim()) {
+                if (!selectedFiles.length && !createUrl.trim()) {
                     message.error("请选择图片或填写图片 URL");
                     return;
                 }
-                const stored = selectedFile ? await uploadImage(selectedFile) : null;
-                addAsset({
-                    kind: "image",
-                    title,
-                    coverUrl: stored?.url || createUrl.trim(),
-                    tags: [],
-                    source: "素材选择器",
-                    data: stored ? { dataUrl: stored.url, storageKey: stored.storageKey, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType } : { dataUrl: createUrl.trim(), width: 0, height: 0, bytes: 0, mimeType: "image/*" },
-                });
+                if (selectedFiles.length) {
+                    const storedImages = await Promise.all(selectedFiles.map((file) => uploadImage(file)));
+                    storedImages.forEach((stored, index) => {
+                        addAsset({
+                            kind: "image",
+                            title: titleForFile(selectedFiles[index]),
+                            coverUrl: stored.url,
+                            tags: [],
+                            source: "素材选择器",
+                            data: { dataUrl: stored.url, storageKey: stored.storageKey, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType },
+                        });
+                    });
+                } else {
+                    addAsset({
+                        kind: "image",
+                        title,
+                        coverUrl: createUrl.trim(),
+                        tags: [],
+                        source: "素材选择器",
+                        data: { dataUrl: createUrl.trim(), width: 0, height: 0, bytes: 0, mimeType: "image/*" },
+                    });
+                }
             } else if (createKind === "video") {
-                if (!selectedFile && !createUrl.trim()) {
+                if (!selectedFiles.length && !createUrl.trim()) {
                     message.error("请选择视频或填写视频 URL");
                     return;
                 }
-                const stored = selectedFile ? await uploadAssetMediaFile(selectedFile, "asset-video") : null;
-                addAsset({
-                    kind: "video",
-                    title,
-                    coverUrl: "",
-                    tags: [],
-                    source: "素材选择器",
-                    data: stored
-                        ? { url: stored.url, storageKey: stored.storageKey, width: stored.width || 0, height: stored.height || 0, bytes: stored.bytes, mimeType: stored.mimeType }
-                        : { url: createUrl.trim(), width: 0, height: 0, bytes: 0, mimeType: "video/mp4" },
-                });
+                if (selectedFiles.length) {
+                    const storedVideos = await Promise.all(selectedFiles.map((file) => uploadAssetMediaFile(file, "asset-video")));
+                    storedVideos.forEach((stored, index) => {
+                        addAsset({
+                            kind: "video",
+                            title: titleForFile(selectedFiles[index]),
+                            coverUrl: "",
+                            tags: [],
+                            source: "素材选择器",
+                            data: { url: stored.url, storageKey: stored.storageKey, width: stored.width || 0, height: stored.height || 0, bytes: stored.bytes, mimeType: stored.mimeType },
+                        });
+                    });
+                } else {
+                    addAsset({
+                        kind: "video",
+                        title,
+                        coverUrl: "",
+                        tags: [],
+                        source: "素材选择器",
+                        data: { url: createUrl.trim(), width: 0, height: 0, bytes: 0, mimeType: "video/mp4" },
+                    });
+                }
             } else {
-                if (!selectedFile && !createUrl.trim()) {
+                if (!selectedFiles.length && !createUrl.trim()) {
                     message.error("请选择音频或填写音频 URL");
                     return;
                 }
-                const stored = selectedFile ? await uploadAssetMediaFile(selectedFile, "asset-audio") : null;
-                addAsset({
-                    kind: "audio",
-                    title,
-                    coverUrl: "",
-                    tags: [],
-                    source: "素材选择器",
-                    data: stored ? { url: stored.url, storageKey: stored.storageKey, bytes: stored.bytes, mimeType: stored.mimeType, durationMs: stored.durationMs } : { url: createUrl.trim(), mimeType: "audio/mpeg" },
-                });
+                if (selectedFiles.length) {
+                    const storedAudios = await Promise.all(selectedFiles.map((file) => uploadAssetMediaFile(file, "asset-audio")));
+                    storedAudios.forEach((stored, index) => {
+                        addAsset({
+                            kind: "audio",
+                            title: titleForFile(selectedFiles[index]),
+                            coverUrl: "",
+                            tags: [],
+                            source: "素材选择器",
+                            data: { url: stored.url, storageKey: stored.storageKey, bytes: stored.bytes, mimeType: stored.mimeType, durationMs: stored.durationMs },
+                        });
+                    });
+                } else {
+                    addAsset({
+                        kind: "audio",
+                        title,
+                        coverUrl: "",
+                        tags: [],
+                        source: "素材选择器",
+                        data: { url: createUrl.trim(), mimeType: "audio/mpeg" },
+                    });
+                }
             }
             message.success("素材已新增");
             setCreateOpen(false);
@@ -372,7 +410,11 @@ function MyAssetsTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => 
                             { value: "video" as const, label: "视频" },
                             { value: "audio" as const, label: "音频" },
                         ].map((item) => (
-                            <Tag.CheckableTag key={item.value} checked={createKind === item.value} className={cn("prompt-filter-tag", createKind === item.value && "is-active")} onChange={() => setCreateKind(item.value)}>
+                            <Tag.CheckableTag key={item.value} checked={createKind === item.value} className={cn("prompt-filter-tag", createKind === item.value && "is-active")} onChange={() => {
+                                setCreateKind(item.value);
+                                setSelectedFiles([]);
+                                if (fileInputRef.current) fileInputRef.current.value = "";
+                            }}>
                                 {item.label}
                             </Tag.CheckableTag>
                         ))}
@@ -382,9 +424,9 @@ function MyAssetsTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => 
                         <Input.TextArea value={createText} autoSize={{ minRows: 5, maxRows: 10 }} placeholder="文本内容" onChange={(event) => setCreateText(event.target.value)} />
                     ) : (
                         <div className="space-y-2">
-                            <input ref={fileInputRef} type="file" accept={createKind === "image" ? "image/*" : createKind === "video" ? "video/*" : "audio/mpeg,audio/wav,audio/x-wav,.mp3,.wav"} className="hidden" onChange={(event) => setSelectedFile(event.target.files?.[0] || null)} />
+                            <input ref={fileInputRef} type="file" multiple accept={createKind === "image" ? "image/*" : createKind === "video" ? "video/*" : "audio/mpeg,audio/wav,audio/x-wav,.mp3,.wav"} className="hidden" onChange={(event) => setSelectedFiles(Array.from(event.target.files || []))} />
                             <Button icon={<ImagePlus className="size-4" />} onClick={() => fileInputRef.current?.click()}>
-                                {selectedFile ? selectedFile.name : createKind === "image" ? "选择图片" : createKind === "video" ? "选择视频" : "选择音频"}
+                                {selectedFiles.length === 1 ? selectedFiles[0].name : selectedFiles.length > 1 ? `已选择 ${selectedFiles.length} 个文件` : createKind === "image" ? "选择图片" : createKind === "video" ? "选择视频" : "选择音频"}
                             </Button>
                             <Input value={createUrl} placeholder={createKind === "image" ? "图片 URL" : createKind === "video" ? "视频 URL" : "音频 URL"} onChange={(event) => setCreateUrl(event.target.value)} />
                         </div>

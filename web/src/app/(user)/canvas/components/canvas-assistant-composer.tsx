@@ -83,7 +83,7 @@ export function CanvasAssistantComposer({
                     onSubmit={submit}
                     className="thin-scrollbar min-h-20 max-h-[220px] w-full px-1 py-0 text-sm leading-5"
                     style={{ color: theme.node.text }}
-                    placeholder="描述创作目标，或让我继续操作画布"
+                    placeholder="描述创作目标，输入 @ 可引用画布资源，或让我继续操作画布"
                     placeholderClassName="!left-1 !top-0"
                 />
                 <div className="mt-2 flex items-center justify-between gap-2">

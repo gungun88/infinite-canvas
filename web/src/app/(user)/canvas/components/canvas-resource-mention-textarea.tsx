@@ -12,6 +12,7 @@ import type { CanvasResourceReference } from "../utils/canvas-resource-reference
 type MentionState = {
     start: number;
     query: string;
+    rect: DOMRect | null;
 };
 
 type Props = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "onChange" | "value"> & {
@@ -60,7 +61,8 @@ export const CanvasResourceMentionTextarea = forwardRef<HTMLTextAreaElement, Pro
             closeMention();
             return;
         }
-        setMention({ start: cursor - match[2].length - 1, query: match[2] });
+        const textarea = textareaRef.current;
+        setMention({ start: cursor - match[2].length - 1, query: match[2], rect: textarea ? getTextareaCaretRect(textarea, cursor) : null });
         setActiveIndex(0);
     };
 
@@ -92,7 +94,7 @@ export const CanvasResourceMentionTextarea = forwardRef<HTMLTextAreaElement, Pro
         caretColor: style?.color || theme.node.text,
         ...(showOverlay ? { background: "transparent", backgroundColor: "transparent" } : {}),
     } as CSSProperties;
-    const menu = mention && candidates.length && textareaRef.current ? <MentionMenu textarea={textareaRef.current} references={candidates} activeIndex={Math.min(activeIndex, candidates.length - 1)} theme={theme} onSelect={insertReference} /> : null;
+    const menu = mention && candidates.length && textareaRef.current ? <MentionMenu textarea={textareaRef.current} rect={mention.rect} references={candidates} activeIndex={Math.min(activeIndex, candidates.length - 1)} theme={theme} onSelect={insertReference} /> : null;
 
     return (
         <div className={`relative h-full w-full ${containerClassName || ""}`}>
@@ -196,16 +198,18 @@ function MentionHighlightText({ value, labels, placeholder }: { value: string; l
     );
 }
 
-function MentionMenu({ textarea, references, activeIndex, theme, onSelect }: { textarea: HTMLTextAreaElement; references: CanvasResourceReference[]; activeIndex: number; theme: (typeof canvasThemes)[keyof typeof canvasThemes]; onSelect: (reference: CanvasResourceReference) => void }) {
+function MentionMenu({ textarea, rect, references, activeIndex, theme, onSelect }: { textarea: HTMLTextAreaElement; rect: DOMRect | null; references: CanvasResourceReference[]; activeIndex: number; theme: (typeof canvasThemes)[keyof typeof canvasThemes]; onSelect: (reference: CanvasResourceReference) => void }) {
     const selectedRef = useRef(false);
-    const rect = textarea.getBoundingClientRect();
+    const textareaRect = textarea.getBoundingClientRect();
+    const anchor = rect || textareaRect;
     const boundary = textarea.closest(".ant-modal-content")?.getBoundingClientRect() || { left: 8, top: 8, right: window.innerWidth - 8, bottom: window.innerHeight - 8 };
     const menuWidth = 256;
     const maxMenuHeight = 224;
+    const menuHeight = Math.min(maxMenuHeight, references.length * 48 + 8);
     const gap = 6;
-    const left = clamp(rect.left, boundary.left + 8, boundary.right - menuWidth - 8);
-    const showAbove = rect.bottom + gap + maxMenuHeight > boundary.bottom && rect.top - gap - maxMenuHeight >= boundary.top;
-    const top = clamp(showAbove ? rect.top - gap - maxMenuHeight : rect.bottom + gap, boundary.top + 8, boundary.bottom - maxMenuHeight - 8);
+    const left = clamp(anchor.left, boundary.left + 8, boundary.right - menuWidth - 8);
+    const showAbove = anchor.bottom + gap + menuHeight > boundary.bottom && anchor.top - gap - menuHeight >= boundary.top;
+    const top = clamp(showAbove ? anchor.top - gap - menuHeight : anchor.bottom + gap, boundary.top + 8, boundary.bottom - menuHeight - 8);
 
     const stopCanvasInteraction = (event: PointerEvent | MouseEvent) => {
         event.stopPropagation();
@@ -263,6 +267,66 @@ function ReferencePreview({ reference }: { reference: CanvasResourceReference })
             <Icon className="size-4" />
         </span>
     );
+}
+
+function getTextareaCaretRect(textarea: HTMLTextAreaElement, cursor: number) {
+    const style = window.getComputedStyle(textarea);
+    const mirror = document.createElement("div");
+    const marker = document.createElement("span");
+    const textareaRect = textarea.getBoundingClientRect();
+    const properties = [
+        "box-sizing",
+        "border-left-width",
+        "border-right-width",
+        "border-top-width",
+        "border-bottom-width",
+        "font-family",
+        "font-size",
+        "font-style",
+        "font-weight",
+        "letter-spacing",
+        "line-height",
+        "padding-left",
+        "padding-right",
+        "padding-top",
+        "padding-bottom",
+        "text-transform",
+        "text-indent",
+        "word-spacing",
+    ] as const;
+
+    properties.forEach((property) => {
+        mirror.style.setProperty(property, style.getPropertyValue(property));
+    });
+    Object.assign(mirror.style, {
+        position: "fixed",
+        left: "-9999px",
+        top: "0",
+        width: `${textareaRect.width}px`,
+        minHeight: `${textareaRect.height}px`,
+        overflow: "hidden",
+        whiteSpace: "pre-wrap",
+        wordBreak: "break-word",
+        overflowWrap: "break-word",
+        visibility: "hidden",
+    });
+
+    mirror.textContent = textarea.value.slice(0, cursor);
+    marker.textContent = "\u200b";
+    mirror.append(marker);
+    document.body.append(mirror);
+
+    const mirrorRect = mirror.getBoundingClientRect();
+    const markerRect = marker.getBoundingClientRect();
+    const lineHeight = Number.parseFloat(style.lineHeight) || Number.parseFloat(style.fontSize) * 1.2 || 18;
+    const rect = new DOMRect(
+        textareaRect.left + markerRect.left - mirrorRect.left - textarea.scrollLeft,
+        textareaRect.top + markerRect.top - mirrorRect.top - textarea.scrollTop,
+        0,
+        lineHeight,
+    );
+    mirror.remove();
+    return rect;
 }
 
 function clamp(value: number, min: number, max: number) {
