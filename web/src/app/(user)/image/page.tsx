@@ -1364,7 +1364,8 @@ function WorkbenchPanel({
                                 references={mentionReferences}
                                 placeholder="描述你想生成的图片，可输入 @ 来指定参考图..."
                                 rows={4}
-                                className="ant-input ant-input-outlined min-h-28 w-full resize-none rounded-2xl px-4 py-3 text-sm leading-6"
+                                containerClassName="overflow-hidden rounded-2xl border border-stone-200 bg-background/95 transition focus-within:border-sky-500/50 focus-within:ring-1 focus-within:ring-sky-500/10 dark:border-stone-800 dark:bg-stone-950/40"
+                                className="h-full w-full resize-none bg-transparent px-4 py-3 text-sm leading-6 text-stone-950 outline-none placeholder:text-stone-500 dark:text-stone-100 dark:placeholder:text-stone-500"
                                 onSubmit={() => {
                                     if (canGenerate) onGenerate();
                                 }}
@@ -1439,8 +1440,9 @@ function WorkbenchPanel({
                             onChange={onPromptChange}
                             references={mentionReferences}
                             rows={6}
-                            className="ant-input ant-input-outlined rounded-xl"
-                            placeholder="描述画面主体、风格、构图、光线和用途"
+                            containerClassName="overflow-hidden rounded-2xl border border-stone-200 bg-background/95 transition focus-within:border-sky-500/50 focus-within:ring-1 focus-within:ring-sky-500/10 dark:border-stone-800 dark:bg-stone-950/40"
+                            className="h-full w-full resize-none bg-transparent px-4 py-3 text-sm leading-6 text-stone-950 outline-none placeholder:text-stone-500 dark:text-stone-100 dark:placeholder:text-stone-500"
+                            placeholder="描述画面主体、风格、构图、光线和用途，输入 @ 可选择参考图"
                         />
                     </div>
                 </section>
