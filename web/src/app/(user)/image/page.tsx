@@ -1363,8 +1363,8 @@ function WorkbenchPanel({
                                 onChange={onPromptChange}
                                 references={mentionReferences}
                                 placeholder="描述你想生成的图片，可输入 @ 来指定参考图..."
-                                rows={2}
-                                className="ant-input ant-input-outlined rounded-2xl"
+                                rows={4}
+                                className="ant-input ant-input-outlined min-h-28 w-full resize-none rounded-2xl px-4 py-3 text-sm leading-6"
                                 onSubmit={() => {
                                     if (canGenerate) onGenerate();
                                 }}
@@ -1405,7 +1405,7 @@ function WorkbenchPanel({
                             <QuickSelect label="尺寸" value={config.size || "auto"} options={imageSizeOptions} onChange={(value) => updateConfig("size", value)} />
                             <QuickSelect label="质量" value={config.quality || "auto"} options={quickQualityOptions} onChange={(value) => updateConfig("quality", value)} />
                             <QuickNumber label="数量" value={config.count || "1"} min={1} max={10} onChange={(value) => updateConfig("count", value)} />
-                            <ReferenceQuickActions references={references} onUploadReferences={onUploadReferences} />
+                            <ReferenceQuickActions onUploadReferences={onUploadReferences} />
                             <Button type="primary" className="h-11 min-w-28 self-end rounded-xl hidden lg:inline-flex" icon={<Sparkles className="size-4" />} disabled={!canGenerate} onClick={onGenerate}>
                                 {pendingCount ? `${pendingCount} 生成中` : "开始创作"}
                             </Button>
@@ -1527,13 +1527,11 @@ function ReferenceStrip({ references, compact = false, className = "", onRemoveR
     );
 }
 
-function ReferenceQuickActions({ references, onUploadReferences }: { references: ReferenceImage[]; onUploadReferences: () => void }) {
+function ReferenceQuickActions({ onUploadReferences }: { onUploadReferences: () => void }) {
     return (
-        <div className="flex h-11 self-end items-center gap-1 rounded-xl border border-stone-200 bg-background px-2 dark:border-stone-800">
-            {references[0] ? <img src={references[0].dataUrl || undefined} alt={references[0].name} className="size-7 rounded object-cover" /> : null}
-            {references.length ? <span className="min-w-7 text-xs text-stone-500">{references.length} 张</span> : null}
-            <Button size="small" type="text" icon={<Upload className="size-3.5" />} onClick={onUploadReferences} />
-        </div>
+        <Button className="h-11 self-end rounded-xl px-4" icon={<Upload className="size-3.5" />} onClick={onUploadReferences}>
+            上传素材
+        </Button>
     );
 }
 
