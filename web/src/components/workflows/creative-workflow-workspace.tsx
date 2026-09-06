@@ -1252,7 +1252,6 @@ export function CreativeWorkflowWorkspace({
                             </div>
                             <div className="grid grid-cols-2 gap-2 text-xs text-stone-500 dark:text-stone-400">
                                 <InfoPill label="模型" value={resolveWorkflowRuntime(runningWorkflow, effectiveConfig).model} />
-                                <InfoPill label="接口" value={resolveWorkflowRuntime(runningWorkflow, effectiveConfig).apiMode === "chat" ? "Chat" : resolveWorkflowRuntime(runningWorkflow, effectiveConfig).apiMode === "responses" ? "Responses" : "Images"} />
                                 <InfoPill label="尺寸" value={runningWorkflow.config.size || effectiveConfig.size} />
                                 <InfoPill label={runningWorkflow.mode === "multi_image_series" ? "草稿数量" : "数量"} value={`${runningWorkflow.mode === "multi_image_series" ? runningWorkflow.seriesConfig.targetCount || "4" : runningWorkflow.config.count || "1"} 张`} />
                             </div>
@@ -1385,11 +1384,10 @@ function WorkflowTaskCard({ task, now, onCopyPrompt, onDownload }: { task: Workf
                 <div className="line-clamp-2 whitespace-pre-wrap text-sm text-stone-600 dark:text-stone-300">{task.prompt}</div>
                 <div className="flex flex-wrap gap-1">
                     <Tag className="m-0 text-[10px]">{task.model}</Tag>
-                    <Tag className="m-0 text-[10px]">{task.apiMode === "chat" ? "Chat" : task.apiMode === "responses" ? "Responses" : "Images"}</Tag>
                     <Tag className="m-0 text-[10px]">{task.config.size || "auto"}</Tag>
                     <Tag className="m-0 text-[10px]">{task.config.quality || "auto"}</Tag>
                     <Tag className="m-0 text-[10px]">{task.count} 张</Tag>
-                    {task.apiMode !== "chat" && task.config.streamImages ? <Tag className="m-0 text-[10px]">流式 {task.config.streamPartialImages || "1"}</Tag> : null}
+                    {task.config.streamImages ? <Tag className="m-0 text-[10px]">流式 {task.config.streamPartialImages || "1"}</Tag> : null}
                 </div>
                 {Object.keys(task.inputs).length ? (
                     <div className="flex flex-wrap gap-1">
@@ -1593,16 +1591,6 @@ function WorkflowEditorModal({
                             <ToggleRow label="先审核提示词" checked={workflow.seriesConfig.reviewRequired !== false} onChange={(checked) => patchSeriesConfig({ reviewRequired: checked })} />
                         </div>
                     ) : null}
-                    <Select
-                        className="w-full"
-                        value={workflow.config.apiMode}
-                        options={[
-                            { value: "images", label: "Images API" },
-                            { value: "responses", label: "Responses API" },
-                            { value: "chat", label: "Chat Completions" },
-                        ]}
-                        onChange={(value) => patchConfig({ apiMode: value })}
-                    />
                     <ImageSettingsPanel
                         config={{ ...defaultConfig, ...workflow.config, model: workflow.config.model || defaultConfig.model, imageModel: workflow.config.imageModel || workflow.config.model || defaultConfig.imageModel }}
                         onConfigChange={(key, value) => patchConfig({ [key]: value } as Partial<WorkflowGenerationConfig>)}
@@ -1999,12 +1987,13 @@ function recordToWorkflow(record: CreativeWorkflowRecord<CreativeWorkflow>): Cre
 function resolveWorkflowRuntime(workflow: CreativeWorkflow, baseConfig: AiConfig) {
     const workflowModel = workflow.config.imageModel || workflow.config.model;
     const fallbackModel = baseConfig.imageModel || baseConfig.model;
+    const apiMode = workflow.config.apiMode || baseConfig.apiMode || "images";
     const fallbackChannelId = resolveWorkflowImageChannelId(baseConfig, fallbackModel, baseConfig.imageChannelId, baseConfig.activeChannelId);
-    if (!workflowModel) return { model: fallbackModel, apiMode: baseConfig.apiMode, channelId: fallbackChannelId };
+    if (!workflowModel) return { model: fallbackModel, apiMode, channelId: fallbackChannelId };
     if (baseConfig.channelMode === "remote" && workflowModel !== fallbackModel && (!baseConfig.models.length || !baseConfig.models.includes(workflowModel))) {
-        return { model: fallbackModel, apiMode: baseConfig.apiMode, channelId: fallbackChannelId };
+        return { model: fallbackModel, apiMode, channelId: fallbackChannelId };
     }
-    return { model: workflowModel, apiMode: workflow.config.apiMode || baseConfig.apiMode, channelId: resolveWorkflowImageChannelId(baseConfig, workflowModel, workflow.config.imageChannelId, baseConfig.imageChannelId, baseConfig.activeChannelId) };
+    return { model: workflowModel, apiMode, channelId: resolveWorkflowImageChannelId(baseConfig, workflowModel, workflow.config.imageChannelId, baseConfig.imageChannelId, baseConfig.activeChannelId) };
 }
 
 function resolveWorkflowImageChannelId(config: AiConfig, model: string, ...preferredIds: Array<string | undefined>) {

@@ -26,7 +26,7 @@ import {
     WandSparkles,
 } from "lucide-react";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { App, Button, Checkbox, Drawer, Empty, Image, Input, Modal, Segmented, Tag, Typography } from "antd";
+import { App, Button, Checkbox, Drawer, Empty, Image, Input, Modal, Tag, Typography } from "antd";
 import localforage from "localforage";
 import { saveAs } from "file-saver";
 
@@ -34,7 +34,9 @@ import { ImageSettingsPanel, imageFormatLabel, imageQualityLabel, imageSizeLabel
 import { ModelPicker } from "@/components/model-picker";
 import { PromptSelectDialog } from "@/components/prompts/prompt-select-dialog";
 import { AssetPickerModal, type InsertAssetPayload } from "@/app/(user)/canvas/components/asset-picker-modal";
+import { CanvasResourceMentionTextarea } from "@/app/(user)/canvas/components/canvas-resource-mention-textarea";
 import { canvasThemes } from "@/lib/canvas-theme";
+import { imageReferenceLabel } from "@/lib/image-reference-prompt";
 import {
     CreativeWorkflowWorkspace,
     type WorkflowExternalTaskFailure,
@@ -943,7 +945,6 @@ export default function ImagePage() {
         if (log.config.quality) updateConfig("quality", log.config.quality);
         if (log.config.size) updateConfig("size", log.config.size);
         if (log.config.count) updateConfig("count", log.config.count);
-        if (log.config.apiMode) updateConfig("apiMode", log.config.apiMode);
         if (typeof log.config.streamImages === "boolean") updateConfig("streamImages", log.config.streamImages);
         if (log.config.streamPartialImages) updateConfig("streamPartialImages", log.config.streamPartialImages);
         if (typeof log.config.responseFormatB64Json === "boolean") updateConfig("responseFormatB64Json", log.config.responseFormatB64Json);
@@ -969,7 +970,7 @@ export default function ImagePage() {
             openConfigDialog(true);
             return null;
         }
-        const requestConfig = { ...baseConfig, model: requestModel, imageModel: requestModel, activeChannelId: requestChannelId, imageChannelId: requestChannelId, count: "1" };
+        const requestConfig = { ...baseConfig, model: requestModel, imageModel: requestModel, activeChannelId: requestChannelId, imageChannelId: requestChannelId, apiMode: configOverride?.apiMode || baseConfig.apiMode || "images", count: "1" };
         return {
             text,
             requestConfig,
@@ -1096,7 +1097,17 @@ export default function ImagePage() {
 
     return (
         <div className="flex h-full flex-col overflow-hidden bg-stone-50 text-stone-900 dark:bg-stone-950 dark:text-stone-100">
-            <main className={`${workbenchLayout === "side" ? "grid grid-cols-1 lg:grid-cols-[420px_minmax(0,1fr)]" : "relative flex flex-col"} min-h-0 flex-1 gap-3 overflow-y-auto p-3 lg:overflow-hidden`}>
+            <main
+                className={`${workbenchLayout === "side" ? "grid grid-cols-1 lg:grid-cols-[420px_minmax(0,1fr)]" : "relative flex flex-col"} min-h-0 flex-1 gap-3 overflow-y-auto p-3 lg:overflow-hidden`}
+                onDragOver={(event) => {
+                    if (event.dataTransfer.types.includes("Files")) event.preventDefault();
+                }}
+                onDrop={(event) => {
+                    if (!event.dataTransfer.files.length) return;
+                    event.preventDefault();
+                    void addReferences(event.dataTransfer.files);
+                }}
+            >
                 {workbenchLayout === "side" ? (
                     <>
                         <WorkbenchPanel
@@ -1331,6 +1342,15 @@ function WorkbenchPanel({
     uploadingCount: number;
 }) {
     const [bottomSettingsCollapsed, setBottomSettingsCollapsed] = useState(true);
+    const mentionReferences = references.map((reference, index) => ({
+        id: reference.id,
+        nodeId: reference.id,
+        kind: "image" as const,
+        label: imageReferenceLabel(index),
+        title: reference.name,
+        previewUrl: reference.dataUrl,
+        active: true,
+    }));
 
     if (layout === "bottom") {
         return (
@@ -1338,14 +1358,15 @@ function WorkbenchPanel({
                 <div className="pointer-events-auto w-full max-w-5xl rounded-[24px] bg-white/65 p-4 shadow-[0_32px_100px_rgba(15,23,42,.22),0_10px_34px_rgba(15,23,42,.10)] ring-1 ring-white/50 backdrop-blur-2xl dark:bg-stone-950/60 dark:ring-white/10 dark:shadow-[0_34px_110px_rgba(0,0,0,.58)]">
                     <div className="flex flex-col gap-3">
                         <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-                            <Input.TextArea
+                            <CanvasResourceMentionTextarea
                                 value={prompt}
-                                onChange={(event) => onPromptChange(event.target.value)}
+                                onChange={onPromptChange}
+                                references={mentionReferences}
                                 placeholder="描述你想生成的图片，可输入 @ 来指定参考图..."
-                                autoSize={{ minRows: 2, maxRows: 4 }}
-                                className="rounded-2xl"
-                                onPressEnter={(event) => {
-                                    if (!event.shiftKey && canGenerate) onGenerate();
+                                rows={2}
+                                className="ant-input ant-input-outlined rounded-2xl"
+                                onSubmit={() => {
+                                    if (canGenerate) onGenerate();
                                 }}
                             />
                             <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
@@ -1364,7 +1385,7 @@ function WorkbenchPanel({
                                 </Button>
                             </div>
                         </div>
-                        <div className={`grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-[1.3fr_1.1fr_0.9fr_0.9fr_0.9fr_0.85fr_0.8fr_0.8fr_auto_auto] ${bottomSettingsCollapsed ? "hidden lg:grid" : "grid"}`}>
+                        <div className={`grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-[1.3fr_0.9fr_0.9fr_0.9fr_0.85fr_auto] ${bottomSettingsCollapsed ? "hidden lg:grid" : "grid"}`}>
                             <label className="grid gap-1 text-xs text-stone-500 dark:text-stone-400">
                                 模型
                                 <ModelPicker
@@ -1381,27 +1402,11 @@ function WorkbenchPanel({
                                     fullWidth
                                 />
                             </label>
-                            <label className="grid gap-1 text-xs text-stone-500 dark:text-stone-400">
-                                接口模式
-                                <div className="flex h-11 items-center rounded-xl border border-stone-200 bg-background px-2.5 dark:border-stone-800">
-                                    <Segmented
-                                        size="small"
-                                        className="canvas-config-mode !rounded-md !p-0.5 w-full"
-                                        value={config.apiMode}
-                                        onChange={(value) => updateConfig("apiMode", value as "images" | "responses" | "chat")}
-                                        options={[
-                                            { value: "images", label: "images" },
-                                            { value: "responses", label: "responses" },
-                                            { value: "chat", label: "chat" },
-                                        ]}
-                                    />
-                                </div>
-                            </label>
                             <QuickSelect label="尺寸" value={config.size || "auto"} options={imageSizeOptions} onChange={(value) => updateConfig("size", value)} />
                             <QuickSelect label="质量" value={config.quality || "auto"} options={quickQualityOptions} onChange={(value) => updateConfig("quality", value)} />
                             <QuickNumber label="数量" value={config.count || "1"} min={1} max={10} onChange={(value) => updateConfig("count", value)} />
                             <ReferenceQuickActions references={references} onUploadReferences={onUploadReferences} />
-                            <Button type="primary" className="h-11 min-w-28 rounded-xl hidden lg:inline-flex" icon={<Sparkles className="size-4" />} disabled={!canGenerate} onClick={onGenerate}>
+                            <Button type="primary" className="h-11 min-w-28 self-end rounded-xl hidden lg:inline-flex" icon={<Sparkles className="size-4" />} disabled={!canGenerate} onClick={onGenerate}>
                                 {pendingCount ? `${pendingCount} 生成中` : "开始创作"}
                             </Button>
                         </div>
@@ -1429,7 +1434,14 @@ function WorkbenchPanel({
                             <Button size="small" icon={<BookOpen className="size-3.5" />} onClick={onOpenPromptLibrary}>提示词库</Button>
                             <Button size="small" icon={<FolderPlus className="size-3.5" />} onClick={onOpenAssetPicker}>我的素材</Button>
                         </div>
-                        <Input.TextArea value={prompt} onChange={(event) => onPromptChange(event.target.value)} rows={6} placeholder="描述画面主体、风格、构图、光线和用途" />
+                        <CanvasResourceMentionTextarea
+                            value={prompt}
+                            onChange={onPromptChange}
+                            references={mentionReferences}
+                            rows={6}
+                            className="ant-input ant-input-outlined rounded-xl"
+                            placeholder="描述画面主体、风格、构图、光线和用途"
+                        />
                     </div>
                 </section>
 
@@ -1517,7 +1529,7 @@ function ReferenceStrip({ references, compact = false, className = "", onRemoveR
 
 function ReferenceQuickActions({ references, onUploadReferences }: { references: ReferenceImage[]; onUploadReferences: () => void }) {
     return (
-        <div className="flex h-11 items-center gap-1 rounded-xl border border-stone-200 bg-background px-2 dark:border-stone-800">
+        <div className="flex h-11 self-end items-center gap-1 rounded-xl border border-stone-200 bg-background px-2 dark:border-stone-800">
             {references[0] ? <img src={references[0].dataUrl || undefined} alt={references[0].name} className="size-7 rounded object-cover" /> : null}
             {references.length ? <span className="min-w-7 text-xs text-stone-500">{references.length} 张</span> : null}
             <Button size="small" type="text" icon={<Upload className="size-3.5" />} onClick={onUploadReferences} />
@@ -1563,7 +1575,7 @@ function settingsSummary(config: AiConfig, model: string) {
         imageSizeLabel(config.size || "auto"),
         imageQualityLabel(config.quality || "auto"),
         `${config.count || "1"} 张`,
-        config.apiMode !== "chat" && config.streamImages ? `流式 ${config.streamPartialImages || "1"}` : "非流式",
+        config.streamImages ? `流式 ${config.streamPartialImages || "1"}` : "非流式",
     ].join(" · ");
 }
 
@@ -1838,20 +1850,6 @@ function GenerationSettings({ config, model, updateConfig, openConfigDialog }: {
                 </div>
                 <div className="border-t border-stone-200 p-3 dark:border-stone-800 space-y-2">
                     <ModelPicker config={config} value={model} capability="image" channelId={config.imageChannelId} onChange={(value, channelId) => { updateConfig("imageModel", value); if (channelId) updateConfig("imageChannelId", channelId); }} fullWidth onMissingConfig={() => openConfigDialog(false)} />
-                    <div className="flex items-center justify-between gap-3 pt-1">
-                        <div className="text-xs opacity-75">接口模式</div>
-                        <Segmented
-                            size="small"
-                            className="canvas-config-mode !rounded-md !p-0.5"
-                            value={config.apiMode}
-                            onChange={(value) => updateConfig("apiMode", value as "images" | "responses" | "chat")}
-                            options={[
-                                { value: "images", label: "images" },
-                                { value: "responses", label: "responses" },
-                                { value: "chat", label: "chat" },
-                            ]}
-                        />
-                    </div>
                 </div>
             </section>
             <ImageSettingsPanel config={config} onConfigChange={(key, value) => updateConfig(key, value)} theme={theme} showTitle={false} className="space-y-3" maxCount={10} />
@@ -1985,10 +1983,9 @@ function TaskInfo({ result, error, onCopyPrompt }: { result: GenerationResult; e
                 ) : null}
                 <Tag className="m-0">{formatLogTime(result.createdAt)}</Tag>
                 <Tag className="m-0">{result.model}</Tag>
-                <Tag className="m-0">{result.config.apiMode === "chat" ? "Chat" : result.config.apiMode === "responses" ? "Responses" : "Images"}</Tag>
                 <Tag className="m-0">{result.config.size || "auto"}</Tag>
                 <Tag className="m-0">{result.config.quality || "auto"}</Tag>
-                {result.config.apiMode !== "chat" && result.config.streamImages ? <Tag className="m-0">流式 {result.config.streamPartialImages || "1"}</Tag> : null}
+                {result.config.streamImages ? <Tag className="m-0">流式 {result.config.streamPartialImages || "1"}</Tag> : null}
                 {result.durationMs ? <Tag className="m-0">{formatDuration(result.durationMs)}</Tag> : null}
             </div>
             {error ? <div className="rounded-md bg-red-100 px-2 py-1.5 text-red-600 dark:bg-red-950/40 dark:text-red-300">{error}</div> : null}
@@ -2122,10 +2119,9 @@ function HistoryLogCard({
                     ) : null}
                     <Tag className="m-0 text-[10px]">{formatLogTime(log.createdAt)}</Tag>
                     <Tag className="m-0 text-[10px]">{log.model}</Tag>
-                    <Tag className="m-0 text-[10px]">{log.config.apiMode === "chat" ? "Chat" : log.config.apiMode === "responses" ? "Responses" : "Images"}</Tag>
                     <Tag className="m-0 text-[10px]">{log.config.size || "auto"}</Tag>
                     <Tag className="m-0 text-[10px]">{log.config.quality || "auto"}</Tag>
-                    {log.config.apiMode !== "chat" && log.config.streamImages ? <Tag className="m-0 text-[10px]">流式 {log.config.streamPartialImages || "1"}</Tag> : null}
+                    {log.config.streamImages ? <Tag className="m-0 text-[10px]">流式 {log.config.streamPartialImages || "1"}</Tag> : null}
                     <Tag className="m-0 text-[10px]">{formatDuration(log.durationMs)}</Tag>
                 </div>
                 {log.errors[0] ? (

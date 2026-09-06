@@ -304,6 +304,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     const router = useRouter();
     const containerRef = useRef<HTMLDivElement>(null);
     const imageInputRef = useRef<HTMLInputElement>(null);
+    const imageInputMultipleRef = useRef<HTMLInputElement>(null);
     const assetInsertPositionRef = useRef<Position | null>(null);
     const draggedAssetPayloadRef = useRef<InsertAssetPayload | null>(null);
     const uploadTargetRef = useRef<{ nodeId?: string; position?: Position } | null>(null);
@@ -2468,23 +2469,30 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
 
     const handleUploadRequest = useCallback((nodeId?: string, position?: Position) => {
         uploadTargetRef.current = { nodeId, position };
-        imageInputRef.current?.click();
+        if (nodeId) imageInputRef.current?.click();
+        else imageInputMultipleRef.current?.click();
     }, []);
 
     const handleImageInputChange = useCallback(
         async (event: ReactChangeEvent<HTMLInputElement>) => {
-            const file = event.target.files?.[0];
+            const files = Array.from(event.target.files || []);
             const target = uploadTargetRef.current;
-            if (!file || (!file.type.startsWith("image/") && !file.type.startsWith("video/") && !isAudioFile(file))) return;
+            const validFiles = files.filter((file) => file.type.startsWith("image/") || file.type.startsWith("video/") || isAudioFile(file));
+            if (!validFiles.length) {
+                uploadTargetRef.current = null;
+                event.target.value = "";
+                return;
+            }
+            const file = target?.nodeId ? validFiles[0] : null;
             const targetNode = target?.nodeId ? nodesRef.current.find((node) => node.id === target.nodeId) : null;
-            if (isPanoramaNodeType(targetNode?.type) && !file.type.startsWith("image/")) {
+            if (file && isPanoramaNodeType(targetNode?.type) && !file.type.startsWith("image/")) {
                 message.warning("全景图节点仅支持上传图片作为参考");
                 uploadTargetRef.current = null;
                 event.target.value = "";
                 return;
             }
 
-            if (target?.nodeId) {
+            if (target?.nodeId && file) {
                 const hideLoading = message.loading(isAudioFile(file) ? "正在上传音频..." : file.type.startsWith("video/") ? "正在上传视频..." : "正在上传图片...", 0);
                 try {
                     if (isAudioFile(file)) {
@@ -2553,7 +2561,20 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 }
             } else {
                 const position = target?.position || screenToCanvas((containerRef.current?.getBoundingClientRect().left || 0) + size.width / 2, (containerRef.current?.getBoundingClientRect().top || 0) + size.height / 2);
-                void (isAudioFile(file) ? createAudioFileNode(file, position) : file.type.startsWith("video/") ? createVideoFileNode(file, position) : createImageFileNode(file, position, true));
+                const columns = Math.ceil(Math.sqrt(validFiles.length));
+                await Promise.all(
+                    validFiles.map((item, index) => {
+                        const itemPosition = {
+                            x: position.x + (index % columns) * 48,
+                            y: position.y + Math.floor(index / columns) * 48,
+                        };
+                        return isAudioFile(item)
+                            ? createAudioFileNode(item, itemPosition)
+                            : item.type.startsWith("video/")
+                              ? createVideoFileNode(item, itemPosition)
+                              : createImageFileNode(item, itemPosition, validFiles.length === 1);
+                    }),
+                );
             }
 
             uploadTargetRef.current = null;
@@ -2596,10 +2617,23 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 void insertAssetAt(payload, screenToCanvas(event.clientX, event.clientY));
                 return;
             }
-            const file = Array.from(event.dataTransfer.files).find((item) => item.type.startsWith("image/") || item.type.startsWith("video/") || isAudioFile(item));
-            if (!file) return;
-            const pos = screenToCanvas(event.clientX, event.clientY);
-            void (isAudioFile(file) ? createAudioFileNode(file, pos) : file.type.startsWith("video/") ? createVideoFileNode(file, pos) : createImageFileNode(file, pos, true));
+            const validFiles = Array.from(event.dataTransfer.files).filter((item) => item.type.startsWith("image/") || item.type.startsWith("video/") || isAudioFile(item));
+            if (!validFiles.length) return;
+            const position = screenToCanvas(event.clientX, event.clientY);
+            const columns = Math.ceil(Math.sqrt(validFiles.length));
+            void Promise.all(
+                validFiles.map((item, index) => {
+                    const itemPosition = {
+                        x: position.x + (index % columns) * 48,
+                        y: position.y + Math.floor(index / columns) * 48,
+                    };
+                    return isAudioFile(item)
+                        ? createAudioFileNode(item, itemPosition)
+                        : item.type.startsWith("video/")
+                          ? createVideoFileNode(item, itemPosition)
+                          : createImageFileNode(item, itemPosition, validFiles.length === 1);
+                }),
+            );
         },
         [createAudioFileNode, createImageFileNode, createVideoFileNode, insertAssetAt, screenToCanvas],
     );
@@ -4200,6 +4234,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     </div>
                 ) : null}
                 <input ref={imageInputRef} type="file" accept="image/*,video/*,audio/mpeg,audio/wav,audio/x-wav,.mp3,.wav" className="hidden" onChange={handleImageInputChange} />
+                <input ref={imageInputMultipleRef} type="file" accept="image/*,video/*,audio/mpeg,audio/wav,audio/x-wav,.mp3,.wav" multiple className="hidden" onChange={handleImageInputChange} />
 
                 <CanvasNodeInfoModal node={infoNode} open={Boolean(infoNode)} onClose={() => setInfoNodeId(null)} />
 
