@@ -63,7 +63,7 @@ export function AppTopNav() {
                                             : "text-stone-500 after:bg-transparent hover:text-stone-950 dark:text-stone-400 dark:hover:text-stone-100",
                                     );
                                     return (
-                                        <Link key={slug || href} href={href} className={className}>
+                                        <Link key={String(slug || href)} href={href} className={className}>
                                             <Icon className="size-4" />
                                             <span className="truncate">{tool.label}</span>
                                         </Link>
