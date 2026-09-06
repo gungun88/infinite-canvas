@@ -78,6 +78,7 @@ export function CanvasNodeHoverToolbar({
     onToggleFreeResize,
     onDelete,
 }: CanvasNodeHoverToolbarProps) {
+    const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const [quickToolsConfigs, setQuickToolsConfigs] = useState(() => ({
         [IMAGE_QUICK_TOOLS_STORAGE_KEY]: { ids: defaultImageQuickToolIds, showLabels: true },
         [PANORAMA_QUICK_TOOLS_STORAGE_KEY]: { ids: defaultPanoramaQuickToolIds, showLabels: true },
@@ -171,6 +172,8 @@ export function CanvasNodeHoverToolbar({
         ...(hasImage ? imageTools.map((tool) => ({ id: tool.id, title: tool.title, label: tool.label, icon: tool.icon, active: tool.active, onClick: tool.onClick })) : []),
     ];
     const toolbarTools = hasImage ? [...baseToolbarTools, ...nodeToolbarTools].filter((tool) => tool.id === "uploadImageToCloud" || quickImageToolIdSet.has(tool.id as ImageQuickToolId)) : [...baseToolbarTools, ...nodeToolbarTools];
+    const downloadTool = toolbarTools.find((tool) => tool.id === "download");
+    const primaryToolbarTools = toolbarTools.filter((tool) => tool.id !== "download");
     const selectableImageToolbarTools = [...baseToolbarTools, ...nodeToolbarTools].filter((tool) => tool.id !== "retry" && tool.id !== "uploadImageToCloud") as ImageToolbarSettingsTool[];
 
     const closeImageToolSettings = () => {
@@ -205,8 +208,8 @@ export function CanvasNodeHoverToolbar({
     return (
         <>
             <div
-                className="absolute z-[70] flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 overflow-visible rounded-xl border border-white/10 bg-[#242424] px-2 py-0.5 text-[13px] text-[#f3f3f3] shadow-[0_8px_28px_rgba(0,0,0,.28)]"
-                style={{ left, top, maxWidth: "min(800px, calc(100vw - 32px))", transform: "translate(-50%, -100%)" }}
+                className="absolute z-[70] flex h-11 max-w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-full items-center overflow-hidden rounded-[14px] border px-1.5 text-[13px] shadow-[0_8px_28px_rgba(28,25,23,.12)]"
+                style={{ left, top, background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.item }}
                 onMouseEnter={() => onKeep(node.id)}
                 onMouseLeave={() => {
                     if (!imageToolSettingsOpen) onLeave();
@@ -214,10 +217,13 @@ export function CanvasNodeHoverToolbar({
                 onMouseDown={(event) => event.stopPropagation()}
                 onPointerDown={(event) => event.stopPropagation()}
             >
-                {toolbarTools.map((tool) => (
-                    <ToolbarAction key={tool.id} {...tool} showLabel={showImageToolLabels} />
-                ))}
-                {hasImage ? <ToolbarAction id="more" title="配置快捷工具" label="更多" icon={<Ellipsis className="size-4" />} active={imageToolSettingsOpen} onClick={openImageToolSettings} showLabel={showImageToolLabels} /> : null}
+                <div className="thin-scrollbar flex h-full min-w-0 flex-1 items-center overflow-x-auto">
+                    {primaryToolbarTools.map((tool) => (
+                        <ToolbarAction key={tool.id} {...tool} theme={theme} iconOnly={tool.id === "download"} withDivider={tool.id === "download"} showLabel={showImageToolLabels} />
+                    ))}
+                    {hasImage ? <ToolbarAction id="more" title="配置快捷工具" label="更多" icon={<Ellipsis className="size-4" />} active={imageToolSettingsOpen} onClick={openImageToolSettings} showLabel={showImageToolLabels} /> : null}
+                    {downloadTool ? <ToolbarAction key={downloadTool.id} {...downloadTool} theme={theme} iconOnly withDivider showLabel={showImageToolLabels} /> : null}
+                </div>
             </div>
             {hasImage ? (
                 <ImageToolSettingsModal
@@ -306,24 +312,50 @@ export function CanvasNodeInfoModal({ node, open, onClose }: { node: CanvasNodeD
     );
 }
 
-function ToolbarAction({ title, label, icon, onClick, showLabel, active = false, danger = false }: ToolbarTool & { showLabel: boolean }) {
-    const hasText = showLabel && Boolean(label);
+function ToolbarAction({
+    id,
+    title,
+    label,
+    icon,
+    onClick,
+    showLabel,
+    theme: providedTheme,
+    iconOnly = false,
+    withDivider = false,
+    active = false,
+    danger = false,
+}: ToolbarTool & {
+    showLabel: boolean;
+    theme?: (typeof canvasThemes)[keyof typeof canvasThemes];
+    iconOnly?: boolean;
+    withDivider?: boolean;
+}) {
+    const theme = providedTheme || canvasThemes[useThemeStore((state) => state.theme)];
+    const isIconOnly = iconOnly || id === "more";
+    const hasText = !isIconOnly && showLabel && Boolean(label);
     return (
-        <Tooltip
-            title={title}
-            placement="top"
-            mouseEnterDelay={0.2}
-            color="#ffffff"
-            styles={{ root: { color: "#242529", boxShadow: "0 8px 24px rgba(15,23,42,.16)", fontSize: 13, fontWeight: 500 } }}
-        >
-            <button type="button" className={`group relative flex h-12 items-center whitespace-nowrap px-1.5 ${danger ? "text-[#ef4444]" : ""}`} onClick={onClick} aria-label={title}>
-                <span className={`flex h-8 items-center rounded-lg transition group-hover:bg-white/10 ${active ? "bg-white/10" : ""} ${hasText ? "gap-2 px-2.5" : "justify-center px-2"}`}>
-                    {icon}
-                    {hasText ? <span>{label}</span> : null}
-                </span>
-            </button>
-        </Tooltip>
+        <>
+            {withDivider ? <ToolbarDivider theme={theme} /> : null}
+            <Tooltip title={title} placement="top" mouseEnterDelay={0.2} color={theme.toolbar.panel} styles={{ root: { color: theme.node.text, boxShadow: "0 8px 24px rgba(15,23,42,.16)", fontSize: 13, fontWeight: 500 } }}>
+                <button
+                    type="button"
+                    className={`group relative flex h-8 shrink-0 items-center justify-center rounded-lg px-2 transition hover:bg-black/5 dark:hover:bg-white/10 ${danger ? "text-red-500" : ""} ${isIconOnly ? "w-8" : ""}`}
+                    style={{ color: danger ? "#ef4444" : theme.toolbar.item, background: active ? theme.toolbar.activeBg : undefined }}
+                    onClick={onClick}
+                    aria-label={title}
+                >
+                    <span className={`flex min-w-0 items-center ${hasText ? "gap-1.5" : "justify-center"}`}>
+                        <span className="flex size-5 shrink-0 items-center justify-center [&>svg]:size-full">{icon}</span>
+                        {hasText ? <span className="min-w-0 max-w-44 truncate">{label}</span> : null}
+                    </span>
+                </button>
+            </Tooltip>
+        </>
     );
+}
+
+function ToolbarDivider({ theme }: { theme: (typeof canvasThemes)[keyof typeof canvasThemes] }) {
+    return <span className="mx-1 h-6 w-px shrink-0" style={{ background: theme.toolbar.border }} aria-hidden="true" />;
 }
 
 function InfoRow({ label, value }: { label: string; value: ReactNode }) {
