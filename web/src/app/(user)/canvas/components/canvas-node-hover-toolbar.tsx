@@ -205,8 +205,8 @@ export function CanvasNodeHoverToolbar({
     return (
         <>
             <div
-                className="absolute z-[70] flex flex-wrap -translate-x-1/2 -translate-y-full items-center justify-center gap-x-2 overflow-visible rounded-xl border border-white/10 bg-[#242424] px-2 text-[13px] text-[#f3f3f3] shadow-[0_8px_28px_rgba(0,0,0,.28)]"
-                style={{ left, top, maxWidth: "min(800px, calc(100vw - 32px))" }}
+                className="absolute z-[70] flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 overflow-visible rounded-xl border border-white/10 bg-[#242424] px-2 py-0.5 text-[13px] text-[#f3f3f3] shadow-[0_8px_28px_rgba(0,0,0,.28)]"
+                style={{ left, top, maxWidth: "min(800px, calc(100vw - 32px))", transform: "translate(-50%, -100%)" }}
                 onMouseEnter={() => onKeep(node.id)}
                 onMouseLeave={() => {
                     if (!imageToolSettingsOpen) onLeave();
@@ -309,9 +309,15 @@ export function CanvasNodeInfoModal({ node, open, onClose }: { node: CanvasNodeD
 function ToolbarAction({ title, label, icon, onClick, showLabel, active = false, danger = false }: ToolbarTool & { showLabel: boolean }) {
     const hasText = showLabel && Boolean(label);
     return (
-        <Tooltip title={title} placement="top" mouseEnterDelay={0.2} color="#ffffff">
-            <button type="button" className={`group relative flex h-12 items-center whitespace-nowrap ${danger ? "text-[#ef4444]" : ""}`} onClick={onClick} aria-label={title}>
-                <span className={`flex h-8 items-center ${hasText ? "gap-2 px-2.5" : "justify-center px-2"} rounded-lg transition group-hover:bg-white/10 ${active ? "bg-white/10" : ""}`}>
+        <Tooltip
+            title={title}
+            placement="top"
+            mouseEnterDelay={0.2}
+            color="#ffffff"
+            styles={{ root: { color: "#242529", boxShadow: "0 8px 24px rgba(15,23,42,.16)", fontSize: 13, fontWeight: 500 } }}
+        >
+            <button type="button" className={`group relative flex h-12 items-center whitespace-nowrap px-1.5 ${danger ? "text-[#ef4444]" : ""}`} onClick={onClick} aria-label={title}>
+                <span className={`flex h-8 items-center rounded-lg transition group-hover:bg-white/10 ${active ? "bg-white/10" : ""} ${hasText ? "gap-2 px-2.5" : "justify-center px-2"}`}>
                     {icon}
                     {hasText ? <span>{label}</span> : null}
                 </span>
