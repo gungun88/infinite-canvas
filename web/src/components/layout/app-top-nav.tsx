@@ -54,7 +54,7 @@ export function AppTopNav() {
                                 {navigationTools.map((tool) => {
                                     const Icon = tool.icon;
                                     const slug = "slug" in tool ? tool.slug : undefined;
-                                    const href = "href" in tool ? tool.href : `/${slug || ""}`;
+                                    const href = ("href" in tool ? tool.href : `/${slug || ""}`) as string;
                                     const active = isActiveTool(tool);
                                     const className = cn(
                                         "relative flex h-16 shrink-0 items-center gap-2 text-sm leading-6 transition after:absolute after:inset-x-0 after:bottom-0 after:h-px",
