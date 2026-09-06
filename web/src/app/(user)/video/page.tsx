@@ -132,7 +132,7 @@ export default function VideoPage() {
     const [results, setResults] = useState<GenerationResult[]>([]);
     const [logs, setLogs] = useState<GenerationLog[]>([]);
     const [running, setRunning] = useState(false);
-    const [workbenchLayout, setWorkbenchLayoutState] = useState<WorkbenchLayout>("side");
+    const [workbenchLayout, setWorkbenchLayoutState] = useState<WorkbenchLayout>("bottom");
     const [bottomSettingsCollapsed, setBottomSettingsCollapsed] = useState(true);
     const [promptDialogOpen, setPromptDialogOpen] = useState(false);
     const [assetPickerOpen, setAssetPickerOpen] = useState(false);

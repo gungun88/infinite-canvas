@@ -151,7 +151,7 @@ export default function ImagePage() {
     const [categories, setCategories] = useState<GenerationCategory[]>([]);
     const [resultViewMode, setResultViewModeState] = useState<ResultViewMode>("all");
     const [activeResultCategoryId, setActiveResultCategoryId] = useState<string | null>(null);
-    const [workbenchLayout, setWorkbenchLayoutState] = useState<WorkbenchLayout>("side");
+    const [workbenchLayout, setWorkbenchLayoutState] = useState<WorkbenchLayout>("bottom");
     const [promptDialogOpen, setPromptDialogOpen] = useState(false);
     const [assetPickerOpen, setAssetPickerOpen] = useState(false);
     const [workflowDrawerOpen, setWorkflowDrawerOpen] = useState(false);
