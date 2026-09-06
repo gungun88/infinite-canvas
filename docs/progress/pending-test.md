@@ -29,3 +29,4 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 画布配置节点和普通节点提示词面板的生成按钮不应再显示算力点图标或费用数字，生成、重试和加载状态应保持正常。
 
 - 重新部署后，测试域名的 3D 导演台顶部不再显示 GitHub 入口，并确认不会再拉取 ghcr.io/tigerowo/infinite-canvas:latest。
+- 验证 Agent 在 Chat Completions 不兼容模型下返回中文提示。

@@ -455,8 +455,17 @@ function parseToolArguments(value: unknown): Pick<CanvasAgentToolCall, "argument
     }
 }
 
+function normalizeCanvasAgentErrorMessage(message: string) {
+    const mappings: Array<[RegExp, string]> = [
+        [/This model is not supported on the Chat Completions endpoint\.?/i, "当前模型不支持 Chat Completions 接口，请在 Agent 设置中切换 Chat / Responses，或更换支持该接口的模型。"],
+        [/This model does not support the Chat Completions endpoint\.?/i, "当前模型不支持 Chat Completions 接口，请在 Agent 设置中切换 Chat / Responses，或更换支持该接口的模型。"],
+    ];
+    const hit = mappings.find(([pattern]) => pattern.test(message));
+    return hit ? hit[1] : message;
+}
+
 function readError(payload: AiErrorPayload, status: number, rawText = "") {
-    return payload.error?.message || payload.msg || rawText || (status ? "文本模型请求失败：" + status : "文本模型请求失败");
+    return normalizeCanvasAgentErrorMessage(payload.error?.message || payload.msg || rawText || (status ? "文本模型请求失败：" + status : "文本模型请求失败"));
 }
 
 function readErrorCode(payload: AiErrorPayload) {
