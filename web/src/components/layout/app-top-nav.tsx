@@ -17,7 +17,11 @@ export function AppTopNav() {
     const hideHeader = /^\/canvas\/[^/]+/.test(pathname);
     const slug = pathname.split("/").filter(Boolean)[0];
     const activeToolSlug = navigationTools.some((tool) => "slug" in tool && tool.slug === slug) ? (slug as NavigationToolSlug) : undefined;
-    const isActiveTool = (tool: (typeof navigationTools)[number]) => ("slug" in tool ? tool.slug === activeToolSlug : "activePrefix" in tool && tool.activePrefix ? pathname.startsWith(tool.activePrefix) : false);
+    const isActiveTool = (tool: (typeof navigationTools)[number]) => {
+        const toolSlug = "slug" in tool ? tool.slug : undefined;
+        const activePrefix = (tool as { activePrefix?: string }).activePrefix;
+        return toolSlug ? toolSlug === activeToolSlug : activePrefix ? pathname.startsWith(activePrefix) : false;
+    };
 
     return (
         <>
