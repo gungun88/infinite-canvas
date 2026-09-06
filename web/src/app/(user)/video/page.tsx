@@ -100,6 +100,7 @@ type AssetPickerTarget = "general" | "image" | "video" | "audio" | "firstFrame" 
 
 const WORKBENCH_LAYOUT_KEY = "infinite-canvas:video-workbench-layout";
 const logStore = localforage.createInstance({ name: "infinite-canvas", storeName: "video_generation_logs" });
+const videoPromptTextareaClassName = "ant-input ant-input-outlined min-h-28 w-full resize-none rounded-2xl px-4 py-3 text-sm leading-6";
 export default function VideoPage() {
     const { message } = App.useApp();
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1404,8 +1405,8 @@ function WorkbenchPanel({
                                 value={prompt}
                                 onChange={(event) => onPromptChange(event.target.value)}
                                 placeholder="描述镜头运动、主体动作、场景氛围和画面风格"
-                                autoSize={{ minRows: 2, maxRows: 4 }}
-                                className="rounded-2xl"
+                                rows={4}
+                                className={videoPromptTextareaClassName}
                                 onPressEnter={(event) => {
                                     if (!event.shiftKey && canGenerate) onGenerate();
                                 }}
@@ -1480,7 +1481,7 @@ function WorkbenchPanel({
                             <Button size="small" icon={<BookOpen className="size-3.5" />} onClick={onOpenPromptLibrary}>提示词库</Button>
                             <Button size="small" icon={<FolderPlus className="size-3.5" />} onClick={() => onOpenAssetPicker()}>我的素材</Button>
                         </div>
-                        <Input.TextArea value={prompt} onChange={(event) => onPromptChange(event.target.value)} rows={6} placeholder="描述镜头运动、主体动作、场景氛围和画面风格" />
+                        <Input.TextArea value={prompt} onChange={(event) => onPromptChange(event.target.value)} rows={4} placeholder="描述镜头运动、主体动作、场景氛围和画面风格" className={videoPromptTextareaClassName} />
                     </div>
                 </WorkbenchSection>
                 {frameReferencesEnabled ? (
