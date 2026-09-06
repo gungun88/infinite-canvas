@@ -22,10 +22,11 @@ export function MobileNavDrawer({ open, activeToolSlug, onClose }: MobileNavDraw
                 {navigationTools.map((tool) => {
                     const Icon = tool.icon;
                     const slug = "slug" in tool ? tool.slug : undefined;
-                    const href = "href" in tool ? tool.href : `/${slug || ""}`;
-                    const active = slug ? slug === activeToolSlug : "activePrefix" in tool && tool.activePrefix ? pathname.startsWith(tool.activePrefix) : false;
+                    const href = ("href" in tool ? tool.href : `/${slug || ""}`) as string;
+                    const activePrefix = (tool as { activePrefix?: string }).activePrefix;
+                    const active = slug ? slug === activeToolSlug : activePrefix ? pathname.startsWith(activePrefix) : false;
                     return (
-                        <Link key={slug || href} href={href} onClick={onClose} className={cn("flex items-center gap-3 rounded-lg px-3 py-3 text-base transition", active ? "bg-stone-100 font-medium text-stone-950 dark:bg-stone-800 dark:text-stone-100" : "text-stone-600 hover:bg-stone-100 hover:text-stone-950 dark:text-stone-300 dark:hover:bg-stone-800 dark:hover:text-stone-100")}>
+                        <Link key={String(slug || href)} href={href} onClick={onClose} className={cn("flex items-center gap-3 rounded-lg px-3 py-3 text-base transition", active ? "bg-stone-100 font-medium text-stone-950 dark:bg-stone-800 dark:text-stone-100" : "text-stone-600 hover:bg-stone-100 hover:text-stone-950 dark:text-stone-300 dark:hover:bg-stone-800 dark:hover:text-stone-100")}>
                             <Icon className="size-5" />
                             <span>{tool.label}</span>
                         </Link>
