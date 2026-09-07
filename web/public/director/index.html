@@ -17,6 +17,17 @@
     <link rel="stylesheet" crossorigin href="/director/assets/index-BaMsYsAL.css">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"></div>
+    <script>
+      document.addEventListener("click", (event) => {
+        const target = event.target instanceof Element ? event.target.closest('button[aria-label="关闭"]') : null;
+        if (!target || window.parent !== window) return;
+        if (window.history.length > 1) {
+          window.history.back();
+        } else {
+          window.location.assign("/");
+        }
+      }, true);
+    </script>
   </body>
   </html>
