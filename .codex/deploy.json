@@ -17,13 +17,13 @@
     "sudo docker compose --env-file .env up -d --build",
     "sudo docker compose --env-file .env ps"
   ],
-  "healthCheck": "https://test-canvas.doingfb.com/api/health",
+  "healthCheck": "https://canvas.doingfb.com/api/health",
   "postDeployVerify": [
     "sudo git log -1 --oneline",
     "sudo git status --short",
     "sudo docker compose --env-file .env ps",
     "curl -fsS http://127.0.0.1:18902/api/health",
-    "curl -fsS https://test-canvas.doingfb.com/api/health"
+    "curl -fsS https://canvas.doingfb.com/api/health"
   ],
   "protectedUntracked": [
     ".env",
@@ -35,8 +35,8 @@
   ],
   "notes": [
     "This project is deployed separately from the existing /opt/infinite-canvas project.",
-    "The server .env must set APP_BIND_ADDRESS=127.0.0.1, APP_PORT=18902, CONTAINER_NAME=infinite-canvas-custom, PUBLIC_BASE_URL=https://test-canvas.doingfb.com, and DATABASE_DSN=/app/data/infinite-canvas.db.",
+    "The server .env must set APP_BIND_ADDRESS=127.0.0.1, APP_PORT=18902, CONTAINER_NAME=infinite-canvas-custom, PUBLIC_BASE_URL=https://canvas.doingfb.com, and DATABASE_DSN=/app/data/infinite-canvas.db.",
     "Do not copy the old project's .env or data directory.",
-    "The old project on 18900/18901 must remain running until the test domain is verified."
+    "The existing formal project on 18900/18901 is separate and must remain untouched."
   ]
 }
