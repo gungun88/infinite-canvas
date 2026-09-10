@@ -15,7 +15,8 @@ import { grokTtsFormatOptions, grokTtsLanguageOptions, isGrok2APITtsConfig, norm
 import { isGeminiConfig, isGeminiTtsModel } from "@/lib/gemini";
 import { geminiTtsVoiceOptions, normalizeGeminiTtsVoice } from "@/lib/gemini-tts";
 import { isMimoPresetTtsModel, isMimoTtsModel, isMimoVoiceCloneModel, isMimoVoiceDesignModel, mimoTtsFormatOptions, mimoTtsVoiceOptions } from "@/lib/mimo-tts";
-import { modelChannelApiKeyUrls, modelChannelDefaultBaseUrls, modelChannelProtocolOptions, nextChannelName } from "@/lib/model-channel";
+import { getChannelApiKeyUrl, getChannelDefaultBaseUrl, getCustomChannelProtocolOptions } from "@/lib/custom-channel-policy";
+import { nextChannelName } from "@/lib/model-channel";
 import { filterChannelModelsByCapability, normalizeLocalChannels, useConfigStore, useEffectiveConfig, type AiConfig, type LocalModelChannel, type ModelCapability } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
 
@@ -236,7 +237,7 @@ export function AppConfigModal() {
 
     const addLocalChannel = () => {
         const channels = normalizeLocalChannels(config);
-        updateLocalChannels([...channels, { id: "local-" + Date.now(), protocol: "doingai", name: nextChannelName(channels), baseUrl: modelChannelDefaultBaseUrls.doingai, apiKey: "", models: [] }]);
+        updateLocalChannels([...channels, { id: "local-" + Date.now(), protocol: "doingai", name: nextChannelName(channels), baseUrl: getChannelDefaultBaseUrl("doingai"), apiKey: "", models: [] }]);
     };
 
     const removeLocalChannel = (id: string) => {
@@ -353,8 +354,8 @@ export function AppConfigModal() {
                                             <Input value={channel.name} placeholder="渠道名称" onChange={(event) => patchLocalChannel(channel.id, { name: event.target.value })} />
                                             <Select
                                                 value={channel.protocol}
-                                                options={modelChannelProtocolOptions}
-                                                onChange={(protocol: LocalModelChannel["protocol"]) => patchLocalChannel(channel.id, { protocol, baseUrl: modelChannelDefaultBaseUrls[protocol] })}
+                                                options={getCustomChannelProtocolOptions(channel.protocol)}
+                                                onChange={(protocol: LocalModelChannel["protocol"]) => patchLocalChannel(channel.id, { protocol, baseUrl: getChannelDefaultBaseUrl(protocol) })}
                                             />
                                             <Input value={channel.baseUrl} placeholder="Base URL" onChange={(event) => patchLocalChannel(channel.id, { baseUrl: event.target.value })} />
                                             <Input.Password value={channel.apiKey} placeholder="API Key" onChange={(event) => patchLocalChannel(channel.id, { apiKey: event.target.value })} />
@@ -365,9 +366,9 @@ export function AppConfigModal() {
                                                 <Button size="small" danger disabled={index === 0 && normalizeLocalChannels(config).length === 1} onClick={() => removeLocalChannel(channel.id)}>
                                                     删除
                                                 </Button>
-                                                {modelChannelApiKeyUrls[channel.protocol] ? (
+                                                {getChannelApiKeyUrl(channel.protocol) ? (
                                                     <div className="w-full md:absolute md:left-0 md:top-8">
-                                                        <Button block type="primary" size="small" href={modelChannelApiKeyUrls[channel.protocol]} target="_blank">
+                                                        <Button block type="primary" size="small" href={getChannelApiKeyUrl(channel.protocol)} target="_blank">
                                                             获取 API Key
                                                         </Button>
                                                     </div>

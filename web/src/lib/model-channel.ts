@@ -9,6 +9,7 @@ export const modelChannelProtocols = [
     { value: "kie", label: "KIE", baseUrl: "https://api.kie.ai/api/v1", apiKeyUrl: "", directRequestPlan: true },
     { value: "autodl", label: "AutoDL", baseUrl: "https://autodl.art", apiKeyUrl: "", directRequestPlan: true },
     { value: "mimo", label: "MiMo", baseUrl: "https://api.xiaomimimo.com", apiKeyUrl: "https://platform.xiaomimimo.com/?ref=JFZQR2" },
+    { value: "custom", label: "自定义", baseUrl: "" },
 ] as const;
 
 export type ModelChannelProtocol = (typeof modelChannelProtocols)[number]["value"];

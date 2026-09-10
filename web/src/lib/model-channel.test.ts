@@ -14,6 +14,7 @@ test("built-in protocol options retain both settings panels' labels and order", 
         { label: "KIE", value: "kie" },
         { label: "AutoDL", value: "autodl" },
         { label: "MiMo", value: "mimo" },
+        { label: "自定义", value: "custom" },
     ]);
 });
 
@@ -29,6 +30,7 @@ test("built-in protocols retain all existing default URLs and API Key links", ()
         autodl: "https://autodl.art",
         mimo: "https://api.xiaomimimo.com",
         "88api": "https://88api.ai/v1",
+        custom: "",
     });
     assert.deepEqual(modelChannelApiKeyUrls, {
         doingai: "https://ai.doingfb.com/keys",

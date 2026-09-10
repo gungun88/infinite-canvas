@@ -9,7 +9,8 @@ import { EditorView } from "@uiw/react-codemirror";
 
 import { ChannelModelSelectorModal } from "@/components/channel-model-selector-modal";
 import { useAutoDLWorkflowNames } from "@/hooks/use-autodl-workflow";
-import { modelChannelApiKeyUrls, modelChannelDefaultBaseUrls, modelChannelProtocolOptions, nextChannelName } from "@/lib/model-channel";
+import { getChannelApiKeyUrl, getChannelDefaultBaseUrl, getCustomChannelProtocolOptions } from "@/lib/custom-channel-policy";
+import { nextChannelName } from "@/lib/model-channel";
 import { fetchAdminSettings, fetchChannelModels, measureAdminStorageProvider, saveAdminSettings, testChannelModel, type AdminModelChannel, type AdminModelCost, type AdminSettings, type AdminStorageProvider } from "@/services/api/admin";
 import { clearStorageConfigCache as clearMediaStorageConfigCache } from "@/services/file-storage";
 import { clearStorageConfigCache as clearImageStorageConfigCache } from "@/services/image-storage";
@@ -49,7 +50,7 @@ const emptySettings: AdminSettings = {
     },
     private: { channels: [], promptSync: { enabled: true, cron: "0 0 * * *" }, aiLog: { localDirectReportEnabled: false, cleanup: { enabled: false, retentionDays: 14, cron: "0 3 * * *" } }, auth: { linuxDo: { clientId: "", clientSecret: "" } }, storage: { mode: "local_indexeddb", allowUserProvider: false, allowUserGlobalProvider: true, autoSyncAllAssets: false, providers: [], roundRobinCursor: 0, capacityCheck: { enabled: false, cron: "0 */6 * * *" }, capacityLimitBytes: 9 * 1024 * 1024 * 1024 } },
 };
-const emptyChannel: AdminModelChannel = { id: "", protocol: "doingai", name: "", baseUrl: modelChannelDefaultBaseUrls.doingai, apiKey: "", models: [], weight: 1, timeout: 600, enabled: true, remark: "" };
+const emptyChannel: AdminModelChannel = { id: "", protocol: "doingai", name: "", baseUrl: getChannelDefaultBaseUrl("doingai"), apiKey: "", models: [], weight: 1, timeout: 600, enabled: true, remark: "" };
 const emptyS3StorageProvider: AdminStorageProvider = { id: "", name: "", type: "s3", endpoint: "", region: "auto", bucket: "", accessKeyId: "", secretAccessKey: "", publicBaseUrl: "", pathPrefix: "canvas", username: "", password: "", weight: 1, enabled: true, ownerUserId: "", capacityBytes: 0, capacityCheckedAt: "", capacityExceeded: false };
 const emptyWebDAVStorageProvider: AdminStorageProvider = { ...emptyS3StorageProvider, name: "", type: "webdav", region: "" };
 
@@ -84,7 +85,7 @@ export default function AdminSettingsPage() {
     const channelBaseUrl = Form.useWatch("baseUrl", channelForm);
     const modelLabel = useAutoDLWorkflowNames([...channels, { protocol: channelProtocol, baseUrl: channelBaseUrl }]);
     const publicModelLabel = (model: string) => modelLabel(model, channels.find((channel) => channel.protocol === "autodl" && channel.models.includes(model)));
-    const channelApiKeyUrl = channelProtocol ? modelChannelApiKeyUrls[channelProtocol] : undefined;
+    const channelApiKeyUrl = getChannelApiKeyUrl(channelProtocol);
     const channelModels = useMemo(() => collectChannelModels(channels), [channels]);
     const channelTableData = useMemo(() => channels.map((channel, index) => ({ ...channel, _index: index, _rowKey: `${index}-${channel.name}-${channel.baseUrl}` })), [channels]);
     const activeMode = editorMode[activeTab];
@@ -842,9 +843,9 @@ export default function AdminSettingsPage() {
                             <Col span={12}>
                                 <Form.Item name="protocol" label="协议">
                                     <Select
-                                        options={modelChannelProtocolOptions}
+                                        options={getCustomChannelProtocolOptions(channelProtocol)}
                                         onChange={(protocol: AdminModelChannel["protocol"]) => {
-                                            channelForm.setFieldValue("baseUrl", modelChannelDefaultBaseUrls[protocol]);
+                                            channelForm.setFieldValue("baseUrl", getChannelDefaultBaseUrl(protocol));
                                         }}
                                     />
                                 </Form.Item>
@@ -1100,7 +1101,7 @@ function normalizeChannel(item: Partial<AdminModelChannel> = {}): AdminModelChan
         id: item.id || "",
         protocol: item.protocol || "doingai",
         name: item.name?.trim() || "",
-        baseUrl: item.baseUrl || modelChannelDefaultBaseUrls.doingai,
+        baseUrl: item.baseUrl || getChannelDefaultBaseUrl("doingai"),
         apiKey: item.apiKey || "",
         models: item.models || [],
         weight: Math.max(1, Number(item.weight) || 1),
