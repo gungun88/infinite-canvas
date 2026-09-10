@@ -262,6 +262,7 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 | `image_url` | text | 完成后图片 URL或第一张图片 URL |
 | `image_urls` | JSON | 完成后全部图片 URL，第一项与 `image_url` 一致 |
 | `storage_key` | string | 存储对象 key |
+| `storage_keys` | JSON | 多图任务中每张结果对应的存储对象 key，第一项与 `storage_key` 一致 |
 | `error` | text | 失败摘要 |
 | `error_detail` | text | 失败详情 |
 | `created_at` | string | 创建时间 |

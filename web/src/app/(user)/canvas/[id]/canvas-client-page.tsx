@@ -5034,12 +5034,17 @@ function canvasImageTaskURLs(task: CanvasImageTask) {
     return [...new Set([...(task.image_urls || []), task.image_url || task.url || ""].map((url) => url.trim()).filter(Boolean))];
 }
 
+function canvasImageTaskStorageKeys(task: CanvasImageTask) {
+    return task.storage_keys || task.storageKeys || (task.storageKey ? [task.storageKey] : []);
+}
+
 function canvasImageTaskChildIds(nodeId: string, task: CanvasImageTask) {
     return canvasImageTaskURLs(task).map((_, index) => `${nodeId}-result-${index}`);
 }
 
 function applyCanvasImageTaskUpdate(nodes: CanvasNodeData[], nodeId: string, task: CanvasImageTask, startedAt: number, fallbackSize: { width: number; height: number }) {
     const urls = canvasImageTaskURLs(task);
+    const storageKeys = canvasImageTaskStorageKeys(task);
     const updated = nodes.map((node) => {
         if (node.id !== nodeId) return node;
         const progress = typeof task.progress === "number" ? Math.max(0, Math.min(100, task.progress)) : node.metadata?.progress || 0;
@@ -5099,7 +5104,7 @@ function applyCanvasImageTaskUpdate(nodes: CanvasNodeData[], nodeId: string, tas
                 content: url,
                 status: NODE_STATUS_SUCCESS,
                 progress: 100,
-                storageKey: "",
+                storageKey: storageKeys[index] || "",
                 mimeType: "image/png",
                 bytes: 0,
                 imageTaskId: undefined,

@@ -58,6 +58,8 @@ export type CanvasImageTask = {
     image_url?: string;
     image_urls?: string[];
     storageKey?: string;
+    storageKeys?: string[];
+    storage_keys?: string[];
     width?: number;
     height?: number;
     mimeType?: string;
@@ -1007,7 +1009,7 @@ export async function createCanvasImageTask(config: AiConfig & { seedIndex?: num
     const payload = (await response.json()) as { code?: number; msg?: string; data?: CanvasImageTask };
     if (payload.code !== 0 || !payload.data) throw new ImageRequestError(payload.msg || "图片任务创建失败", payload);
     refreshRemoteUser(config);
-    return payload.data;
+    return hydrateCanvasImageTask(payload.data);
 }
 
 export async function pollCanvasImageTaskStatus(taskId: string): Promise<CanvasImageTask> {
@@ -1022,7 +1024,29 @@ export async function pollCanvasImageTaskStatus(taskId: string): Promise<CanvasI
     }
     const payload = (await response.json()) as { code?: number; msg?: string; data?: CanvasImageTask };
     if (payload.code !== 0 || !payload.data) throw new ImageRequestError(payload.msg || "读取图片任务失败", payload);
-    return payload.data;
+    return hydrateCanvasImageTask(payload.data);
+}
+
+async function hydrateCanvasImageTask(task: CanvasImageTask) {
+    const storageKeys = task.storage_keys || task.storageKeys || (task.storageKey ? [task.storageKey] : []);
+    if (!storageKeys.length) return task;
+    const urls = task.image_urls?.length ? task.image_urls : [task.image_url || task.url || ""];
+    const resolvedURLs = await Promise.all(
+        urls.map((url, index) => {
+            const storageKey = storageKeys[index] || (index === 0 ? task.storageKey : "");
+            return storageKey ? resolveImageUrl(storageKey, url).catch(() => url) : Promise.resolve(url);
+        }),
+    );
+    const primaryURL = resolvedURLs[0] || task.image_url || task.url || "";
+    return {
+        ...task,
+        url: primaryURL,
+        image_url: primaryURL,
+        ...(task.image_urls?.length ? { image_urls: resolvedURLs } : {}),
+        storageKey: storageKeys[0] || task.storageKey,
+        storageKeys,
+        storage_keys: storageKeys,
+    };
 }
 
 async function createCanvasImageTaskRequest(config: AiConfig & { seedIndex?: number; seedCount?: number }, prompt: string, references: ReferenceImage[], params: ImageRequestParams, options: CanvasImageTaskOptions): Promise<RequestInit> {
@@ -1464,7 +1488,7 @@ export async function listCanvasImageTasks(config: AiConfig, sources: Array<"ima
     }
     const payload = (await response.json()) as { code?: number; msg?: string; data?: CanvasImageTask[] };
     if (payload.code !== 0 || !Array.isArray(payload.data)) throw new ImageRequestError(payload.msg || "读取图片任务失败", payload);
-    return payload.data;
+    return Promise.all(payload.data.map(hydrateCanvasImageTask));
 }
 
 export async function batchCanvasImageTaskStatus(config: AiConfig, ids: string[]) {
@@ -1481,7 +1505,7 @@ export async function batchCanvasImageTaskStatus(config: AiConfig, ids: string[]
     }
     const payload = (await response.json()) as { code?: number; msg?: string; data?: CanvasImageTask[] };
     if (payload.code !== 0 || !Array.isArray(payload.data)) throw new ImageRequestError(payload.msg || "读取图片任务失败", payload);
-    return payload.data;
+    return Promise.all(payload.data.map(hydrateCanvasImageTask));
 }
 
 export async function deleteCanvasImageTask(config: AiConfig, task?: CanvasImageTask | null) {

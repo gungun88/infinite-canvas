@@ -198,7 +198,6 @@ export async function resolveImageUrl(storageKey?: string, fallback = "") {
     }
     if (storageKey.startsWith("server:")) {
         const id = storageKey.slice("server:".length);
-        if (fallback && !fallback.startsWith("blob:") && !fallback.includes("direct=1") && !fallback.includes("/api/files/")) return fallback;
         const localUrl = await resolveLocalImageUrl(storageKey).catch(() => "");
         if (localUrl) return localUrl;
         const cachedUrl = serverUrls.get(id);
@@ -217,7 +216,15 @@ export async function resolveImageUrl(storageKey?: string, fallback = "") {
             }
         }
         const url = info.publicUrl || info.contentUrl || `/api/files/${encodeURIComponent(id)}/content`;
-        serverUrls.set(id, url);
+        if (info.publicUrl) {
+            serverUrls.set(id, url);
+            return url;
+        }
+        if (info.contentUrl) {
+            const response = await fetch(info.contentUrl);
+            if (!response.ok) return fallback;
+            return setImageBlob(storageKey, await response.blob());
+        }
         return url;
     }
     return await resolveLocalImageUrl(storageKey) || fallback;

@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
@@ -272,9 +273,15 @@ func runCanvasImageTask(task model.CanvasImageTask, user model.AuthUser, body []
 		return
 	}
 	collectAll := isKIESeedreamLayerDecompositionModel(task.Model)
-	imageURLs, mimeType, bytes, err := imageURLsFromAIResponse(payload, responseContentType, collectAll, task.Endpoint == "/chat/completions")
+	images, err := imageDataFromAIResponse(payload, responseContentType, collectAll, task.Endpoint == "/chat/completions")
 	if err != nil {
 		saveFailedCanvasImageTask(task, err.Error(), string(payload))
+		return
+	}
+	imageURLs, storageKeys, mimeType, bytes, width, height, err := persistCanvasTaskImages(task, user, images)
+	if err != nil {
+		log.Printf("persist canvas image task result failed: task=%s user=%s err=%v", task.ID, user.ID, err)
+		saveFailedCanvasImageTask(task, "鍥剧墖淇濆瓨澶辫触", err.Error())
 		return
 	}
 	task.Status = "completed"
@@ -285,14 +292,94 @@ func runCanvasImageTask(task model.CanvasImageTask, user model.AuthUser, body []
 	if collectAll {
 		task.ImageURLs = imageURLs
 	}
-	task.StorageKey = ""
+	task.StorageKey = storageKeys[0]
+	task.StorageKeys = storageKeys
 	task.MimeType = mimeType
 	task.Bytes = bytes
-	task.Width = 0
-	task.Height = 0
+	task.Width = width
+	task.Height = height
 	task.Error = ""
 	task.ErrorDetail = ""
 	_, _ = service.SaveCanvasImageTask(task)
+}
+
+type canvasTaskImage struct {
+	Data     []byte
+	MimeType string
+}
+
+func imageDataFromAIResponse(payload []byte, contentType string, collectAll bool, includeChatImages bool) ([]canvasTaskImage, error) {
+	candidates, err := imageCandidatesFromAIResponse(payload, contentType, includeChatImages)
+	if err != nil {
+		return nil, err
+	}
+	images := make([]canvasTaskImage, 0, len(candidates))
+	seen := map[string]bool{}
+	for _, candidate := range candidates {
+		candidate = strings.TrimSpace(candidate)
+		if seen[candidate] {
+			continue
+		}
+		data, mimeType, err := imageCandidateBytes(candidate)
+		if err != nil || len(data) == 0 || !strings.HasPrefix(mimeType, "image/") {
+			continue
+		}
+		seen[candidate] = true
+		images = append(images, canvasTaskImage{Data: data, MimeType: mimeType})
+		if !collectAll {
+			break
+		}
+	}
+	if len(images) == 0 {
+		return nil, errors.New("鍥剧墖鎺ュ彛娌℃湁杩斿洖鍥剧墖")
+	}
+	return images, nil
+}
+
+func persistCanvasTaskImages(task model.CanvasImageTask, user model.AuthUser, images []canvasTaskImage) ([]string, []string, string, int64, int, int, error) {
+	ctx := service.WithUser(context.Background(), user)
+	urls := make([]string, 0, len(images))
+	storageKeys := make([]string, 0, len(images))
+	uploadedIDs := make([]string, 0, len(images))
+	var firstMimeType string
+	var firstBytes int64
+	var firstWidth, firstHeight int
+	for index, image := range images {
+		filename := "canvas-" + task.ID + "-" + formatCanvasImageIndex(index) + canvasImageExtension(image.MimeType)
+		uploaded, err := service.UploadStorageObject(ctx, filename, image.MimeType, image.Data)
+		if err != nil {
+			for _, id := range uploadedIDs {
+				_ = service.DeleteStorageObject(ctx, id, nil)
+			}
+			return nil, nil, "", 0, 0, 0, err
+		}
+		uploadedIDs = append(uploadedIDs, uploaded.ID)
+		urls = append(urls, uploaded.URL)
+		storageKeys = append(storageKeys, uploaded.StorageKey)
+		if index == 0 {
+			firstMimeType = image.MimeType
+			firstBytes = int64(len(image.Data))
+			firstWidth, firstHeight = imageSize(image.Data)
+		}
+	}
+	return urls, storageKeys, firstMimeType, firstBytes, firstWidth, firstHeight, nil
+}
+
+func formatCanvasImageIndex(index int) string {
+	return fmt.Sprintf("%03d", index+1)
+}
+
+func canvasImageExtension(mimeType string) string {
+	switch strings.ToLower(strings.TrimSpace(mimeType)) {
+	case "image/jpeg":
+		return ".jpg"
+	case "image/webp":
+		return ".webp"
+	case "image/gif":
+		return ".gif"
+	default:
+		return ".png"
+	}
 }
 
 func runCanvasAudioTask(task model.CanvasAudioTask, user model.AuthUser, body []byte, contentType string, channelID string, userChannelID string) {
@@ -693,7 +780,11 @@ func collectImageCandidates(value any, depth int, includeChatImages bool) []stri
 
 func imageCandidateBytes(value string) ([]byte, string, error) {
 	if strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://") {
-		response, err := http.Get(value)
+		request, err := http.NewRequest(http.MethodGet, value, nil)
+		if err != nil {
+			return nil, "", err
+		}
+		response, err := service.SafeProxyHTTPClient().Do(request)
 		if err != nil {
 			return nil, "", err
 		}
@@ -709,7 +800,11 @@ func imageCandidateBytes(value string) ([]byte, string, error) {
 		if mimeType == "" {
 			mimeType = http.DetectContentType(data)
 		}
-		return data, strings.Split(mimeType, ";")[0], nil
+		mimeType = strings.TrimSpace(strings.Split(mimeType, ";")[0])
+		if !strings.HasPrefix(mimeType, "image/") {
+			mimeType = http.DetectContentType(data)
+		}
+		return data, strings.TrimSpace(mimeType), nil
 	}
 	if strings.HasPrefix(value, "data:image/") {
 		parts := strings.SplitN(value, ",", 2)
