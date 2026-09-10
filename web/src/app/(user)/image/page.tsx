@@ -977,8 +977,8 @@ export default function ImagePage() {
             const result = snapshot.references.length ? await requestEdit(snapshot.requestConfig, snapshot.text, snapshot.references) : await requestGeneration(snapshot.requestConfig, snapshot.text);
             const image = result[0];
             if (!image) throw new Error("接口没有返回图片");
-            const meta = await readImageMeta(image.dataUrl);
-            const nextImage: GeneratedImage = { id: image.id, dataUrl: image.dataUrl, durationMs: performance.now() - itemStartedAt, width: meta.width, height: meta.height, bytes: getDataUrlByteSize(image.dataUrl), mimeType: meta.mimeType };
+            const meta = image.width && image.height && image.mimeType ? { width: image.width, height: image.height, mimeType: image.mimeType } : await readImageMeta(image.dataUrl);
+            const nextImage: GeneratedImage = { ...image, durationMs: performance.now() - itemStartedAt, width: meta.width, height: meta.height, bytes: image.bytes || getDataUrlByteSize(image.dataUrl), mimeType: image.mimeType || meta.mimeType };
             setResults((value) => updateResult(value, resultId, { status: "success", image: nextImage, durationMs: nextImage.durationMs }));
             return nextImage;
         } catch (error) {
@@ -2461,6 +2461,7 @@ async function imageLogsFromTask(log: GenerationLog, task: CanvasImageTask): Pro
     const parentTaskId = task.parent_task_id || task.id;
 
     return Promise.all(urls.map(async (url, index) => {
+        const stored = task.imageStorage?.find((image) => image?.url === url);
         const nextLog = await imageLogFromTask(
             {
                 ...log,
@@ -2472,8 +2473,9 @@ async function imageLogsFromTask(log: GenerationLog, task: CanvasImageTask): Pro
                 parent_task_id: parentTaskId,
                 url,
                 image_url: url,
-                storageKey: undefined,
-                bytes: 0,
+                storageKey: stored?.storageKey,
+                bytes: stored?.bytes || 0,
+                mimeType: stored?.mimeType || task.mimeType,
             },
         );
 
@@ -2499,8 +2501,10 @@ async function imageLogFromTask(log: GenerationLog, task: CanvasImageTask): Prom
         if (!url) {
             return { ...log, task, status: "失败", durationMs, failCount: 1, errors: ["图片生成完成但没有返回图片地址"], errorDetails: [JSON.stringify(task, null, 2)], lastPolledAt: Date.now() };
         }
-        const image = await cacheGeneratedImage({ id: task.id, dataUrl: url, sourceUrl: url, storageKey: task.storageKey, durationMs, width: task.width || 0, height: task.height || 0, bytes: task.bytes || 0, mimeType: task.mimeType || "image/png" });
+        const stored = task.imageStorage?.find((image) => image?.url === url);
+        const image = await cacheGeneratedImage({ id: task.id, dataUrl: url, sourceUrl: url, storageKey: task.storageKey, durationMs, width: stored?.width || task.width || 0, height: stored?.height || task.height || 0, bytes: stored?.bytes || task.bytes || 0, mimeType: stored?.mimeType || task.mimeType || "image/png" });
         return { ...log, task, status: "成功", durationMs, successCount: 1, failCount: 0, imageCount: 1, images: [image], thumbnails: [image.dataUrl], errors: [], errorDetails: [], lastPolledAt: Date.now() };
+        return { ...log, task, status: "成功", durationMs, successCount: 1, failCount: 0, imageCount: 1, images: [image], thumbnails: [url], errors: [], errorDetails: [], lastPolledAt: Date.now() };
     }
     return { ...log, task, durationMs, lastPolledAt: Date.now() };
 }

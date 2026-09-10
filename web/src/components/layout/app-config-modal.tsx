@@ -15,7 +15,7 @@ import { grokTtsFormatOptions, grokTtsLanguageOptions, isGrok2APITtsConfig, norm
 import { isGeminiConfig, isGeminiTtsModel } from "@/lib/gemini";
 import { geminiTtsVoiceOptions, normalizeGeminiTtsVoice } from "@/lib/gemini-tts";
 import { isMimoPresetTtsModel, isMimoTtsModel, isMimoVoiceCloneModel, isMimoVoiceDesignModel, mimoTtsFormatOptions, mimoTtsVoiceOptions } from "@/lib/mimo-tts";
-import { modelChannelApiKeyUrls, modelChannelDefaultBaseUrls, nextChannelName } from "@/lib/model-channel";
+import { modelChannelApiKeyUrls, modelChannelDefaultBaseUrls, modelChannelProtocolOptions, nextChannelName } from "@/lib/model-channel";
 import { filterChannelModelsByCapability, normalizeLocalChannels, useConfigStore, useEffectiveConfig, type AiConfig, type LocalModelChannel, type ModelCapability } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
 
@@ -353,12 +353,7 @@ export function AppConfigModal() {
                                             <Input value={channel.name} placeholder="渠道名称" onChange={(event) => patchLocalChannel(channel.id, { name: event.target.value })} />
                                             <Select
                                                 value={channel.protocol}
-                                                options={[
-                                                    { label: "OpenAI", value: "openai" },
-                                                    { label: "Gemini", value: "gemini" },
-                                                    { label: "Grok2API", value: "grok2api" },
-                                                    { label: "doingAI", value: "doingai" },
-                                                ]}
+                                                options={modelChannelProtocolOptions}
                                                 onChange={(protocol: LocalModelChannel["protocol"]) => patchLocalChannel(channel.id, { protocol, baseUrl: modelChannelDefaultBaseUrls[protocol] })}
                                             />
                                             <Input value={channel.baseUrl} placeholder="Base URL" onChange={(event) => patchLocalChannel(channel.id, { baseUrl: event.target.value })} />
@@ -546,6 +541,7 @@ export function AppConfigModal() {
             </Modal>
             {modelSelectChannel ? (
                 <ChannelModelSelectorModal
+                    channel={modelSelectChannel}
                     models={modelSelectChannel.models}
                     onCancel={closeLocalModelSelector}
                     onConfirm={confirmLocalModelSelector}
