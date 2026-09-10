@@ -58,6 +58,7 @@ type GeneratedImage = {
     id: string;
     dataUrl: string;
     storageKey?: string;
+    sourceUrl?: string;
     durationMs: number;
     width: number;
     height: number;
@@ -489,10 +490,7 @@ export default function ImagePage() {
                     throw new Error("接口没有返回图片");
                 }
 
-                const durableImage = {
-                    ...image,
-                    storageKey: "",
-                };
+                const durableImage = await cacheGeneratedImage(image);
                 
                 // 更新结果状态
                 setResults((value) => updateResult(value, id, { image: durableImage }));
@@ -741,16 +739,10 @@ export default function ImagePage() {
 
     const persistLoggedOutLogImages = async (log: GenerationLog): Promise<GenerationLog> => {
         const images = log.images || [];
-        if (!images.some((image) => !image.storageKey && image.dataUrl?.startsWith("data:image/"))) return log;
+        if (!images.some((image) => !image.storageKey && image.dataUrl)) return log;
         const persistedImages = await Promise.all(
             images.map(async (image) => {
-                if (image.storageKey || !image.dataUrl?.startsWith("data:image/")) return image;
-                try {
-                    const stored = await uploadImage(image.dataUrl, { localOnly: true });
-                    return { ...image, dataUrl: stored.url, storageKey: stored.storageKey, width: stored.width || image.width, height: stored.height || image.height, bytes: stored.bytes || image.bytes, mimeType: stored.mimeType || image.mimeType };
-                } catch {
-                    return image;
-                }
+                return image.storageKey ? image : cacheGeneratedImage(image);
             }),
         );
         return { ...log, images: persistedImages };
@@ -847,13 +839,13 @@ export default function ImagePage() {
                         return;
                     }
                     if ((task.image_urls?.length || 0) > 1) {
-                        const nextLogs = imageLogsFromTask(log, task);
+                        const nextLogs = await imageLogsFromTask(log, task);
                         await Promise.all(nextLogs.map(saveLog));
                         setResults((value) => value.filter((item) => !imageResultMatchesLog(item, nextLogs[0])));
                         return;
                     }
 
-                    const nextLog = imageLogFromTask(log, task);
+                    const nextLog = await imageLogFromTask(log, task);
                     await saveLog(nextLog);
                     if (nextLog.status === "生成中") {
                         setResults((value) => updateResultByLogId(value, log.id, { task, progress: task.progress, durationMs: nextLog.durationMs, lastPolledAt: nextLog.lastPolledAt }));
@@ -1882,7 +1874,7 @@ function ResultImageCard({
         <div className="overflow-hidden rounded-lg border border-stone-200 bg-background dark:border-stone-800">
             <div className="relative aspect-[4/3] bg-stone-100 dark:bg-stone-900">
                 <div className="absolute right-1.5 top-1.5 z-10 flex gap-1">
-                    {!image.storageKey?.startsWith("server:") ? <Tag className="m-0 text-[10px]" color="gold">临时URL</Tag> : null}
+                    {!image.storageKey ? <Tag className="m-0 text-[10px]" color="gold">临时URL</Tag> : null}
                     <Tag className="m-0 text-[10px]" color="blue">新生成</Tag>
                 </div>
                 <ReferenceThumbnailOverlay references={result.references} className="left-1.5 top-1.5" />
@@ -2069,7 +2061,7 @@ function HistoryLogCard({
                     {selected ? <Button size="small" danger type="text" icon={<Trash2 className="size-3.5" />} onClick={onDelete} /> : null}
                 </div>
                 <div className="absolute right-1.5 top-1.5 z-10 flex gap-1">
-                    {firstImage && !firstImage.storageKey?.startsWith("server:") ? <Tag className="m-0 text-[10px]" color="gold">临时URL</Tag> : null}
+                    {firstImage && !firstImage.storageKey ? <Tag className="m-0 text-[10px]" color="gold">临时URL</Tag> : null}
                     <Tag className="m-0 text-[10px]" color={log.status === "生成中" ? "processing" : log.failCount ? "red" : "blue"}>
                         {log.status === "生成中" ? "生成中" : log.failCount ? `失败 ${log.failCount}` : "成功"}
                     </Tag>
@@ -2310,12 +2302,27 @@ function preferGenerationLog(next: GenerationLog, current: GenerationLog) {
 }
 
 function mergeLogIdentityData(primary: GenerationLog, duplicate: GenerationLog) {
+    const images = primary.images.length
+        ? primary.images.map((image, index) => {
+              const duplicateImage = duplicate.images.find((item) => item.id === image.id) || duplicate.images[index];
+              if (!duplicateImage) return image;
+              if (duplicateImage.dataUrl?.startsWith("blob:") && !image.dataUrl?.startsWith("blob:")) {
+                  return {
+                      ...image,
+                      dataUrl: duplicateImage.dataUrl,
+                      storageKey: image.storageKey?.startsWith("server:") ? image.storageKey : duplicateImage.storageKey || image.storageKey,
+                      sourceUrl: image.sourceUrl || duplicateImage.sourceUrl,
+                  };
+              }
+              return !image.dataUrl && duplicateImage.dataUrl ? { ...image, dataUrl: duplicateImage.dataUrl, sourceUrl: image.sourceUrl || duplicateImage.sourceUrl } : image;
+          })
+        : duplicate.images;
     return {
         ...primary,
         task: primary.task || duplicate.task,
         lastPolledAt: primary.lastPolledAt || duplicate.lastPolledAt,
-        images: primary.images.length ? primary.images : duplicate.images,
-        thumbnails: primary.thumbnails.length ? primary.thumbnails : duplicate.thumbnails,
+        images,
+        thumbnails: images.map((image) => image.dataUrl),
         successCount: primary.successCount || duplicate.successCount,
         imageCount: primary.imageCount || duplicate.imageCount,
         failCount: primary.failCount || duplicate.failCount,
@@ -2448,13 +2455,13 @@ function mergeBackendImageTasks(logs: GenerationLog[], tasks: CanvasImageTask[],
     return dedupeGenerationLogs(nextLogs);
 }
 
-function imageLogsFromTask(log: GenerationLog, task: CanvasImageTask): GenerationLog[] {
+async function imageLogsFromTask(log: GenerationLog, task: CanvasImageTask): Promise<GenerationLog[]> {
     const urls = uniqueStrings(task.image_urls || []);
-    if (urls.length <= 1) return [imageLogFromTask(log, task)];
+    if (urls.length <= 1) return [await imageLogFromTask(log, task)];
     const parentTaskId = task.parent_task_id || task.id;
 
-    return urls.map((url, index) => {
-        const nextLog = imageLogFromTask(
+    return Promise.all(urls.map(async (url, index) => {
+        const nextLog = await imageLogFromTask(
             {
                 ...log,
                 id: index === 0 ? log.id : `${log.id}:${index}`,
@@ -2477,10 +2484,10 @@ function imageLogsFromTask(log: GenerationLog, task: CanvasImageTask): Generatio
                 id: index === 0 ? task.id : `${parentTaskId}:${index}`,
             })),
         };
-    });
+    }));
 }
 
-function imageLogFromTask(log: GenerationLog, task: CanvasImageTask): GenerationLog {
+async function imageLogFromTask(log: GenerationLog, task: CanvasImageTask): Promise<GenerationLog> {
     const startedAt = parseImageTaskTime(task.started_at ?? task.startedAt ?? task.created_at ?? task.createdAt) || log.createdAt;
     const durationMs = Date.now() - startedAt;
     if (isFailedImageTask(task)) {
@@ -2492,8 +2499,8 @@ function imageLogFromTask(log: GenerationLog, task: CanvasImageTask): Generation
         if (!url) {
             return { ...log, task, status: "失败", durationMs, failCount: 1, errors: ["图片生成完成但没有返回图片地址"], errorDetails: [JSON.stringify(task, null, 2)], lastPolledAt: Date.now() };
         }
-        const image: GeneratedImage = { id: task.id, dataUrl: url, storageKey: task.storageKey, durationMs, width: task.width || 0, height: task.height || 0, bytes: task.bytes || 0, mimeType: task.mimeType || "image/png" };
-        return { ...log, task, status: "成功", durationMs, successCount: 1, failCount: 0, imageCount: 1, images: [image], thumbnails: [url], errors: [], errorDetails: [], lastPolledAt: Date.now() };
+        const image = await cacheGeneratedImage({ id: task.id, dataUrl: url, sourceUrl: url, storageKey: task.storageKey, durationMs, width: task.width || 0, height: task.height || 0, bytes: task.bytes || 0, mimeType: task.mimeType || "image/png" });
+        return { ...log, task, status: "成功", durationMs, successCount: 1, failCount: 0, imageCount: 1, images: [image], thumbnails: [image.dataUrl], errors: [], errorDetails: [], lastPolledAt: Date.now() };
     }
     return { ...log, task, durationMs, lastPolledAt: Date.now() };
 }
@@ -2528,8 +2535,9 @@ async function readStoredLogs() {
         await logStore.iterate<GenerationLog, void>((value) => {
             values.push(value);
         });
-        const logs = await Promise.all(values.map(normalizeLog));
-        return dedupeGenerationLogs(logs);
+        const logs = dedupeGenerationLogs(await Promise.all(values.map(normalizeLog)));
+        await Promise.all(logs.map((log) => logStore.setItem(log.id, serializeLog(log))));
+        return logs;
     } catch {
         return [];
     }
@@ -2611,9 +2619,13 @@ function shouldPreserveLocalImageLogDuringRemoteMerge(log: GenerationLog, remote
 async function mergeGenerationLogs(remoteLogs: GenerationLog[], localLogs: GenerationLog[]) {
     const normalizedRemote = await Promise.all(remoteLogs.map(normalizeLog));
     const normalizedLocal = await Promise.all(localLogs.map(normalizeLog));
-    const remoteKeys = new Set(normalizedRemote.flatMap(imageLogIdentityKeys));
+    const mergedRemote = normalizedRemote.map((remote) => {
+        const local = normalizedLocal.find((item) => imageLogIdentityKeys(item).some((key) => imageLogIdentityKeys(remote).includes(key)));
+        return local ? mergeLogIdentityData(remote, local) : remote;
+    });
+    const remoteKeys = new Set(mergedRemote.flatMap(imageLogIdentityKeys));
     const preservedLocal = normalizedLocal.filter((log) => shouldPreserveLocalImageLogDuringRemoteMerge(log, remoteKeys));
-    return dedupeGenerationLogs([...normalizedRemote, ...preservedLocal]);
+    return dedupeGenerationLogs([...mergedRemote, ...preservedLocal]);
 }
 
 function mergeGenerationCategories(remoteCategories: GenerationCategory[], localCategories: GenerationCategory[]) {
@@ -2633,25 +2645,28 @@ async function normalizeLog(log: Partial<GenerationLog>): Promise<GenerationLog>
     );
     const images = await Promise.all(
         (log.images || []).map(async (item) => {
-            const dataUrl = await resolveImageUrl(item.storageKey, item.dataUrl);
-            return { ...item, dataUrl };
+            return normalizeStoredImage(item);
         }),
     );
     const visibleImages = images.filter((image) => Boolean(image.dataUrl));
     if (!visibleImages.length && log.status === "成功") {
         const taskImageUrl = log.task?.image_url || log.task?.url || "";
-        const dataUrl = await resolveImageUrl(log.task?.storageKey, taskImageUrl);
-        if (dataUrl) {
-            visibleImages.push({
+        const image = taskImageUrl
+            ? await normalizeStoredImage({
                 id: log.task?.id || log.id || nanoid(),
-                dataUrl,
+                dataUrl: taskImageUrl,
+                sourceUrl: taskImageUrl,
                 storageKey: log.task?.storageKey,
                 durationMs: log.durationMs || 0,
                 width: log.task?.width || 0,
                 height: log.task?.height || 0,
                 bytes: log.task?.bytes || 0,
                 mimeType: log.task?.mimeType || "image/png",
-            });
+              })
+            : null;
+        if (image?.dataUrl) {
+            images.push(image);
+            visibleImages.push(image);
         }
     }
     const config = normalizeLogConfig(log);
@@ -2671,7 +2686,7 @@ async function normalizeLog(log: Partial<GenerationLog>): Promise<GenerationLog>
         size: log.size || config.size || "",
         quality: log.quality || config.quality || "",
         status: log.status || "成功",
-        images: visibleImages,
+        images,
         thumbnails: visibleImages.map((image) => image.dataUrl),
         errors: log.errors || [],
         errorDetails: log.errorDetails || [],
@@ -2689,12 +2704,55 @@ function serializeLog(log: GenerationLog): GenerationLog {
     return {
         ...log,
         references: log.references.map((item) => ({ ...item, dataUrl: persistableImageUrl(item.dataUrl, item.storageKey) })),
-        images: log.images.map((image) => ({ ...image, dataUrl: persistableImageUrl(image.dataUrl, image.storageKey) })),
-        thumbnails: log.images.map((image) => persistableImageUrl(image.dataUrl, image.storageKey)),
+        images: log.images.map((image) => ({ ...image, dataUrl: persistableImageUrl(image.dataUrl, image.storageKey, image.sourceUrl) })),
+        thumbnails: log.images.map((image) => persistableImageUrl(image.dataUrl, image.storageKey, image.sourceUrl)),
     };
 }
 
-function persistableImageUrl(dataUrl?: string, storageKey?: string) {
+async function normalizeStoredImage(image: GeneratedImage): Promise<GeneratedImage> {
+    const fallback = image.storageKey?.startsWith("server:") ? image.dataUrl : image.sourceUrl || image.dataUrl;
+    const dataUrl = await resolveImageUrl(image.storageKey, fallback);
+    if (!dataUrl) return { ...image, dataUrl: "" };
+    if (image.storageKey?.startsWith("server:") || dataUrl.startsWith("blob:")) return { ...image, dataUrl };
+    return cacheGeneratedImage({
+        ...image,
+        dataUrl,
+        storageKey: undefined,
+        sourceUrl: image.sourceUrl || (isHttpImageUrl(dataUrl) ? dataUrl : undefined),
+    }, false);
+}
+
+async function cacheGeneratedImage(image: GeneratedImage, keepSourceOnFailure = true): Promise<GeneratedImage> {
+    if (image.storageKey) return image;
+    const source = image.sourceUrl || image.dataUrl;
+    if (!source || source.startsWith("blob:")) return image;
+    try {
+        const stored = await uploadImage(source, { localOnly: true });
+        return {
+            ...image,
+            dataUrl: stored.url,
+            storageKey: stored.storageKey,
+            sourceUrl: isHttpImageUrl(source) ? source : image.sourceUrl,
+            width: stored.width || image.width,
+            height: stored.height || image.height,
+            bytes: stored.bytes || image.bytes,
+            mimeType: stored.mimeType || image.mimeType,
+        };
+    } catch {
+        return {
+            ...image,
+            dataUrl: keepSourceOnFailure ? image.dataUrl : "",
+            sourceUrl: image.sourceUrl || (isHttpImageUrl(source) ? source : undefined),
+        };
+    }
+}
+
+function isHttpImageUrl(value?: string) {
+    return Boolean(value && /^https?:\/\//i.test(value));
+}
+
+function persistableImageUrl(dataUrl?: string, storageKey?: string, fallback?: string) {
+    if (storageKey?.startsWith("image:")) return fallback || "";
     if (storageKey) return "";
     if (!dataUrl?.startsWith("data:image/")) return dataUrl || "";
     return "";
