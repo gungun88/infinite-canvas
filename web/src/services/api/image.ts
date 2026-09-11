@@ -8,6 +8,7 @@ import { dataUrlToGeminiInlineData, geminiActionUrl, geminiDirectHeaders, gemini
 import { autoSyncImage, imageToDataUrl, resolveImageUrl, type UploadedImage } from "@/services/image-storage";
 import { requireAiLogin } from "@/services/api/ai-auth";
 import { readAxiosError } from "@/services/api/errors";
+import { apiPost } from "@/services/api/request";
 import { buildApiUrl, channelIdForActiveModel, channelProtocolForConfig, directAIProviderForConfig, localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
 import { fetchAutoDLWorkflows } from "./autodl";
@@ -1234,16 +1235,9 @@ export async function fetchImageModels(config: AiConfig) {
     if (isMiniMaxChannel(channel)) return [...miniMaxModels];
     if (isMimoChannel(channel || { baseUrl: config.baseUrl })) return [...mimoModels];
     try {
-        const response = await axios.get<{ data?: Array<{ id?: string }>; error?: { message?: string } }>(buildApiUrl(channel.baseUrl || config.baseUrl, "/models"), {
-            headers: {
-                Authorization: `Bearer ${channel.apiKey || config.apiKey}`,
-            },
-            timeout: IMAGE_REQUEST_TIMEOUT_SECONDS * 1000,
-        });
-        return (response.data.data || [])
-            .map((model) => model.id)
-            .filter((id): id is string => Boolean(id))
-            .sort((a, b) => a.localeCompare(b));
+        const token = useUserStore.getState().token;
+        if (!token) throw new Error("请先登录后再拉取模型列表");
+        return await apiPost<string[]>("/api/v1/models", { channel }, token);
     } catch (error) {
         throw new Error(readAxiosError(error, "读取模型失败"));
     }
