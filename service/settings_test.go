@@ -53,6 +53,25 @@ func TestFetchAdminChannelModelsReportsArkPlanModelsUnsupported(t *testing.T) {
 	}
 }
 
+func TestFetchAdminChannelModelsHidesUnauthorizedBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":{"message":"invalid api key: sk-secret"}}`))
+	}))
+	defer server.Close()
+
+	_, err := fetchAdminChannelModels(model.ModelChannel{
+		BaseURL: server.URL,
+		APIKey:  "test-key",
+	})
+	if err == nil {
+		t.Fatal("expected unauthorized error")
+	}
+	if strings.Contains(err.Error(), "sk-secret") || !strings.Contains(err.Error(), "上游接口鉴权失败（401）") {
+		t.Fatalf("error = %q", err.Error())
+	}
+}
+
 func TestBuildModelChannelURLNormalizesArkPlanTaskPath(t *testing.T) {
 	got := BuildModelChannelURL(model.ModelChannel{BaseURL: "https://ark.cn-beijing.volces.com/api/plan/v3/contents/generations/tasks?debug=1"}, "/models")
 	want := "https://ark.cn-beijing.volces.com/api/plan/v3/models"

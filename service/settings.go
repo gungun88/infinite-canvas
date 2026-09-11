@@ -885,6 +885,9 @@ func testArkSeedanceChannelModel(channel model.ModelChannel, modelName string) (
 }
 
 func readAdminChannelError(body []byte, statusCode int, fallback string) error {
+	if statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden {
+		return safeMessageError{message: fmt.Sprintf("上游接口鉴权失败（%d），请检查 API Key 是否正确、是否已过期，以及渠道或模型权限", statusCode)}
+	}
 	var payload struct {
 		Error *struct {
 			Message string `json:"message"`
@@ -898,9 +901,6 @@ func readAdminChannelError(body []byte, statusCode int, fallback string) error {
 		if strings.TrimSpace(payload.Msg) != "" {
 			return safeMessageError{message: payload.Msg}
 		}
-	}
-	if statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden {
-		return safeMessageError{message: fmt.Sprintf("上游接口鉴权失败（%d），请检查 API Key、套餐权限或模型权限", statusCode)}
 	}
 	if statusCode == http.StatusTooManyRequests {
 		return safeMessageError{message: "上游接口限流或额度不足（429），请稍后重试或检查额度"}
