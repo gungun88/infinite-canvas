@@ -1,17 +1,14 @@
 import axios from "axios";
 
-import { isMiniMaxChannel, miniMaxModels } from "@/lib/minimax-video";
 import { dataUrlToFile } from "@/lib/image-utils";
 import { isKIESeedreamLayerDecompositionModel } from "@/lib/kie-models";
-import { isMimoChannel, mimoModels } from "@/lib/mimo-tts";
-import { dataUrlToGeminiInlineData, geminiActionUrl, geminiDirectHeaders, geminiErrorMessage, isGeminiConfig, normalizeGeminiBaseUrl } from "@/lib/gemini";
+import { dataUrlToGeminiInlineData, geminiActionUrl, geminiDirectHeaders, geminiErrorMessage, isGeminiConfig } from "@/lib/gemini";
 import { autoSyncImage, imageToDataUrl, resolveImageUrl, type UploadedImage } from "@/services/image-storage";
 import { requireAiLogin } from "@/services/api/ai-auth";
 import { readAxiosError } from "@/services/api/errors";
 import { apiPost } from "@/services/api/request";
 import { buildApiUrl, channelIdForActiveModel, channelProtocolForConfig, directAIProviderForConfig, localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
-import { fetchAutoDLWorkflows } from "./autodl";
 import type { ReferenceImage } from "@/types/image";
 import { nanoid } from "nanoid";
 
@@ -1230,10 +1227,6 @@ export async function fetchImageModels(config: AiConfig) {
     const channel = localChannelForActiveModel(config);
     requireAiLogin(config.channelMode);
     if (!channel) throw new Error("请先配置本地渠道");
-    if (channel?.protocol === "gemini") return fetchGeminiModels(channel.baseUrl, channel.apiKey);
-    if (channel?.protocol === "autodl") return (await fetchAutoDLWorkflows(channel.baseUrl)).map((workflow) => workflow.uuid);
-    if (isMiniMaxChannel(channel)) return [...miniMaxModels];
-    if (isMimoChannel(channel || { baseUrl: config.baseUrl })) return [...mimoModels];
     try {
         const token = useUserStore.getState().token;
         if (!token) throw new Error("请先登录后再拉取模型列表");
@@ -1369,26 +1362,6 @@ async function createGeminiTextBody(config: AiConfig, messages: ChatCompletionMe
         contents.push({ role: message.role === "assistant" ? "model" : "user", parts });
     }
     return { model: config.model, stream: true, ...(systemParts.length ? { systemInstruction: { parts: systemParts } } : {}), contents };
-}
-
-async function fetchGeminiModels(baseUrl: string, apiKey: string) {
-    const result: string[] = [];
-    let pageToken = "";
-    do {
-        const url = new URL(`${normalizeGeminiBaseUrl(baseUrl)}/v1beta/models`);
-        if (pageToken) url.searchParams.set("pageToken", pageToken);
-        const response = await fetch(url, { headers: { "x-goog-api-key": apiKey } });
-        if (!response.ok) throw new Error(geminiErrorMessage(await response.json().catch(() => ({})), `读取模型失败（${response.status}）`));
-        const payload = await response.json() as { models?: Array<{ name?: string; supportedGenerationMethods?: string[] }>; nextPageToken?: string };
-        for (const item of payload.models || []) {
-            const name = item.name?.replace(/^models\//, "") || "";
-            const methods = item.supportedGenerationMethods || [];
-            if (name && !/embed|embedding/i.test(name) && (methods.includes("generateContent") || methods.includes("predictLongRunning") || /^(veo-|imagen-)/i.test(name))) result.push(name);
-        }
-        pageToken = payload.nextPageToken || "";
-    } while (pageToken);
-    if (!result.length) throw new Error("Gemini 模型列表为空");
-    return Array.from(new Set(result)).sort((a, b) => a.localeCompare(b));
 }
 
 function withoutModel<T extends { model: string; stream?: boolean }>(body: T) {
